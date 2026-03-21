@@ -10,7 +10,6 @@ import hashlib
 import logging
 
 from aiogram import Router
-from aiogram.filters import Filter
 from aiogram.types import Message
 
 import config
@@ -21,16 +20,12 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-class FromAllowedChat(Filter):
-    """Фильтр: пропускает только сообщения из ALLOWED_CHAT_ID."""
-
-    async def __call__(self, message: Message) -> bool:
-        return message.chat.id == config.ALLOWED_CHAT_ID
-
-
-@router.message(FromAllowedChat())
+@router.message()
 async def handle_message(message: Message) -> None:
     """Принять текстовое сообщение и сохранить в базу данных."""
+    if message.chat.id != config.ALLOWED_CHAT_ID:
+        return
+
     text = message.text or message.caption
     if not text:
         return
