@@ -31,7 +31,8 @@ class FromAllowedChat(Filter):
 @router.message(FromAllowedChat())
 async def handle_message(message: Message) -> None:
     """Принять текстовое сообщение и сохранить в базу данных."""
-    if not message.text:
+    text = message.text or message.caption
+    if not text:
         return
     if message.from_user is None:
         return
@@ -43,7 +44,7 @@ async def handle_message(message: Message) -> None:
     await database.save_message(
         user_id=user_id,
         username=username,
-        text=message.text,
+        text=text,
         timestamp=timestamp,
     )
     logger.info("Принято сообщение от %s (@%s)", user_id, username)
