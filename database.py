@@ -63,8 +63,13 @@ async def save_message(
     timestamp: int,
 ) -> None:
     """Сохранить входящее сообщение в таблицу messages."""
-    # TODO: реализовать
-    pass
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO messages (user_id, username, text, timestamp) VALUES (?, ?, ?, ?)",
+            (user_id, username, text, timestamp),
+        )
+        await db.commit()
+    logger.info("Сообщение сохранено: user_id=%s, timestamp=%d", user_id, timestamp)
 
 
 async def get_messages_since(since_ts: int) -> list[dict]:
