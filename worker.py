@@ -59,7 +59,7 @@ async def run_daily_summary(bot: Bot) -> None:
             summary = await llm.generate_summary(messages_for_llm)
             created_at = int(time.time())
             await database.save_summary(date_str, summary, created_at)
-            await bot.send_message(config.ALLOWED_CHAT_ID, summary)
+            await bot.send_message(config.ALLOWED_CHAT_ID, summary, parse_mode="HTML")
             logger.info("Сводка за %s успешно отправлена", date_str)
             break
         except Exception:
