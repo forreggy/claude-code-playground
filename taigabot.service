@@ -1,0 +1,14 @@
+[Unit]
+Description=TaigaBot Lite — Telegram bot with daily AI summaries
+After=network.target
+
+[Service]
+User={{USER}}
+WorkingDirectory={{PROJECT_DIR}}
+ExecStart={{PROJECT_DIR}}/venv/bin/python bot.py
+EnvironmentFile={{PROJECT_DIR}}/.env
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
