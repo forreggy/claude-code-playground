@@ -20,9 +20,18 @@ def _require(name: str) -> str:
     return value
 
 
+def _parse_admin_ids() -> frozenset[int]:
+    """Считать ADMIN_IDS из окружения, разбить по запятой, вернуть frozenset[int]."""
+    raw = os.environ.get("ADMIN_IDS", "").strip()
+    if not raw:
+        raise ValueError("Отсутствует обязательная переменная окружения: ADMIN_IDS")
+    return frozenset(int(x.strip()) for x in raw.split(",") if x.strip())
+
+
 BOT_TOKEN: str = _require("BOT_TOKEN")
 ALLOWED_CHAT_ID: int = int(_require("ALLOWED_CHAT_ID"))
 OPENAI_API_KEY: str = _require("OPENAI_API_KEY")
 OPENAI_MODEL: str = _require("OPENAI_MODEL")
 SUMMARY_TIME: str = _require("SUMMARY_TIME")
 TIMEZONE: str = _require("TIMEZONE")
+ADMIN_IDS: frozenset[int] = _parse_admin_ids()
