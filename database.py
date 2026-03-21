@@ -75,10 +75,24 @@ async def save_message(
 async def get_messages_since(since_ts: int) -> list[dict]:
     """Вернуть все сообщения с timestamp >= since_ts.
 
-    Каждый элемент списка — словарь с ключами username и text.
+    Каждый элемент списка — словарь с ключами user_id, username, text, timestamp.
     """
-    # TODO: реализовать
-    pass
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT user_id, username, text, timestamp FROM messages WHERE timestamp >= ?",
+            (since_ts,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "user_id": row["user_id"],
+                "username": row["username"],
+                "text": row["text"],
+                "timestamp": row["timestamp"],
+            }
+            for row in rows
+        ]
 
 
 async def save_summary(date: str, summary_text: str, created_at: int) -> None:
@@ -89,11 +103,21 @@ async def save_summary(date: str, summary_text: str, created_at: int) -> None:
         summary_text: полный текст сводки
         created_at: Unix timestamp момента генерации
     """
-    # TODO: реализовать
-    pass
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO summaries (date, summary_text, created_at) VALUES (?, ?, ?)",
+            (date, summary_text, created_at),
+        )
+        await db.commit()
+    logger.info("Сводка сохранена в summaries: date=%s", date)
 
 
 async def delete_messages_older_than(ts: int) -> None:
     """Удалить из таблицы messages все записи с timestamp < ts."""
-    # TODO: реализовать
-    pass
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM messages WHERE timestamp < ?",
+            (ts,),
+        )
+        await db.commit()
+    logger.info("Удалено %d старых сообщений (старше timestamp=%d)", cursor.rowcount, ts)
