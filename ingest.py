@@ -6,4 +6,45 @@
   — сохраняет сообщение в базу данных через database.save_message()
 """
 
-# TODO: реализовать
+import hashlib
+import logging
+
+from aiogram import Router
+from aiogram.filters import Filter
+from aiogram.types import Message
+
+import config
+import database
+
+logger = logging.getLogger(__name__)
+
+router = Router()
+
+
+class FromAllowedChat(Filter):
+    """Фильтр: пропускает только сообщения из ALLOWED_CHAT_ID."""
+
+    async def __call__(self, message: Message) -> bool:
+        return message.chat.id == config.ALLOWED_CHAT_ID
+
+
+@router.message(FromAllowedChat())
+async def handle_message(message: Message) -> None:
+    """Принять текстовое сообщение и сохранить в базу данных."""
+    text = message.text or message.caption
+    if not text:
+        return
+    if message.from_user is None:
+        return
+
+    user_id = hashlib.sha256(str(message.from_user.id).encode()).hexdigest()[:12]
+    username = message.from_user.username
+    timestamp = int(message.date.timestamp())
+
+    await database.save_message(
+        user_id=user_id,
+        username=username,
+        text=text,
+        timestamp=timestamp,
+    )
+    logger.info("Принято сообщение от %s (@%s)", user_id, username)
