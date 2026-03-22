@@ -20,6 +20,7 @@ from aiogram import Bot
 
 import config
 import database
+import imagegen
 import llm
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ logger = logging.getLogger(__name__)
 _QUIET_DAY_TEXT = "Сегодня в чате было тихо. Даже Леший не вышел."
 _MIN_MESSAGES = 10
 _RETRY_INTERVAL = 60
+_IMAGE_RETRY_INTERVAL = 30
+_IMAGE_MAX_ATTEMPTS = 3
 _CLEANUP_AGE = 48 * 3600  # 48 часов в секундах
 
 
@@ -57,9 +60,38 @@ async def run_daily_summary(bot: Bot) -> None:
     while True:
         try:
             summary = await llm.generate_summary(messages_for_llm)
+            parsed = llm.parse_summary_response(summary)
+
+            # Попытка сгенерировать и отправить картинку (не блокирует текст)
+            if parsed["image_prompt"] and parsed["image_caption"]:
+                photo = None
+                for attempt in range(_IMAGE_MAX_ATTEMPTS):
+                    photo = await imagegen.generate_meme_image(
+                        parsed["image_prompt"], parsed["image_caption"]
+                    )
+                    if photo:
+                        break
+                    if attempt < _IMAGE_MAX_ATTEMPTS - 1:
+                        logger.warning(
+                            "Попытка %d/%d генерации картинки не удалась, повтор через %d сек",
+                            attempt + 1,
+                            _IMAGE_MAX_ATTEMPTS,
+                            _IMAGE_RETRY_INTERVAL,
+                        )
+                        await asyncio.sleep(_IMAGE_RETRY_INTERVAL)
+
+                if photo:
+                    await bot.send_photo(config.ALLOWED_CHAT_ID, photo=photo)
+                    logger.info("Картинка МЕМ ДНЯ отправлена")
+                else:
+                    logger.warning("Не удалось сгенерировать картинку за %d попыток", _IMAGE_MAX_ATTEMPTS)
+
+            # Текстовая сводка отправляется ВСЕГДА
             created_at = int(time.time())
             await database.save_summary(date_str, summary, created_at)
-            await bot.send_message(config.ALLOWED_CHAT_ID, summary, parse_mode="HTML")
+            await bot.send_message(
+                config.ALLOWED_CHAT_ID, parsed["summary_text"], parse_mode="HTML"
+            )
             logger.info("Сводка за %s успешно отправлена", date_str)
             break
         except Exception:
