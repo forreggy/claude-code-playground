@@ -111,31 +111,50 @@ async def generate_summary(messages: list[dict]) -> str:
 
 def parse_summary_response(text: str) -> dict:
     """Распарсить ответ LLM: извлечь image_prompt, image_caption и текст сводки.
-
     Возвращает словарь с ключами:
     - image_prompt (str | None) — промпт для генерации картинки на английском
     - image_caption (str | None) — короткая подпись на русском
     - summary_text (str) — текст сводки без маркеров, готовый к отправке
-
     Graceful degradation: если маркеры не найдены, image_prompt и image_caption
     будут None, а summary_text содержит весь текст.
+    Устойчив к отсутствию закрывающих тегов (LLM иногда их пропускает).
     """
+    # Извлечение image_prompt: сначала парный тег, потом fallback
     prompt_match = re.search(
         r"\[IMAGE_PROMPT\](.*?)\[/IMAGE_PROMPT\]", text, re.DOTALL
     )
+    if not prompt_match:
+        prompt_match = re.search(
+            r"\[IMAGE_PROMPT\](.*?)(?=\[IMAGE_CAPTION\]|\n<b>|$)", text, re.DOTALL
+        )
+
+    # Извлечение image_caption: сначала парный тег, потом fallback
     caption_match = re.search(
         r"\[IMAGE_CAPTION\](.*?)\[/IMAGE_CAPTION\]", text, re.DOTALL
     )
+    if not caption_match:
+        caption_match = re.search(
+            r"\[IMAGE_CAPTION\]([^\n]+)", text
+        )
 
     image_prompt = prompt_match.group(1).strip() if prompt_match else None
     image_caption = caption_match.group(1).strip() if caption_match else None
 
-    # Удаляем маркеры из текста сводки
+    # Удаляем маркеры из текста (и парные, и осиротевшие)
     summary_text = re.sub(
         r"\[IMAGE_PROMPT\].*?\[/IMAGE_PROMPT\]", "", text, flags=re.DOTALL
     )
     summary_text = re.sub(
+        r"\[IMAGE_PROMPT\][^\n]*", "", summary_text
+    )
+    summary_text = re.sub(
         r"\[IMAGE_CAPTION\].*?\[/IMAGE_CAPTION\]", "", summary_text, flags=re.DOTALL
+    )
+    summary_text = re.sub(
+        r"\[IMAGE_CAPTION\][^\n]*", "", summary_text
+    )
+    summary_text = re.sub(
+        r"\[/?IMAGE_(?:PROMPT|CAPTION)\]", "", summary_text
     )
     summary_text = summary_text.strip()
 

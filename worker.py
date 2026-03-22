@@ -16,7 +16,11 @@ import datetime
 import logging
 import time
 
+import re
+
 from aiogram import Bot
+
+from aiogram.types import BufferedInputFile
 
 import config
 import database
@@ -62,9 +66,9 @@ async def run_daily_summary(bot: Bot) -> None:
             summary = await llm.generate_summary(messages_for_llm)
             parsed = llm.parse_summary_response(summary)
 
-            # Попытка сгенерировать и отправить картинку (не блокирует текст)
+	    # Попытка сгенерировать и отправить картинку (не блокирует текст)
+            photo = None
             if parsed["image_prompt"] and parsed["image_caption"]:
-                photo = None
                 for attempt in range(_IMAGE_MAX_ATTEMPTS):
                     photo = await imagegen.generate_meme_image(
                         parsed["image_prompt"], parsed["image_caption"]
@@ -81,16 +85,26 @@ async def run_daily_summary(bot: Bot) -> None:
                         await asyncio.sleep(_IMAGE_RETRY_INTERVAL)
 
                 if photo:
-                    await bot.send_photo(config.ALLOWED_CHAT_ID, photo=photo)
-                    logger.info("Картинка МЕМ ДНЯ отправлена")
+                    await bot.send_photo(
+                        config.ALLOWED_CHAT_ID,
+                        photo=BufferedInputFile(photo.read(), filename="meme.png"),
+                    )
+#                    await bot.send_photo(config.ALLOWED_CHAT_ID, photo=photo)
+#                    logger.info("Картинка МЕМ ДНЯ отправлена")
                 else:
                     logger.warning("Не удалось сгенерировать картинку за %d попыток", _IMAGE_MAX_ATTEMPTS)
 
             # Текстовая сводка отправляется ВСЕГДА
+            summary_text = parsed["summary_text"]
+            if photo:
+                summary_text = re.sub(
+                    r"<b>МЕМ ДНЯ</b>\s*", "", summary_text
+                ).lstrip("\n")
+
             created_at = int(time.time())
             await database.save_summary(date_str, summary, created_at)
             await bot.send_message(
-                config.ALLOWED_CHAT_ID, parsed["summary_text"], parse_mode="HTML"
+                config.ALLOWED_CHAT_ID, summary_text, parse_mode="HTML"
             )
             logger.info("Сводка за %s успешно отправлена", date_str)
             break

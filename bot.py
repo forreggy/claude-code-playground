@@ -38,6 +38,16 @@ async def main() -> None:
         args=[bot],
     )
 
+#    from datetime import datetime, timedelta, timezone
+#    msk = timezone(timedelta(hours=3))
+#    test_time = datetime.now(msk) + timedelta(minutes=2)
+#    scheduler.add_job(
+#	 worker.run_daily_summary,
+#         'date',
+#         run_date=test_time,
+#         args=[bot],
+#    )
+
     scheduler.start()
     logger.info(
         "Scheduler запущен. Сводка будет генерироваться в %s (%s)",
