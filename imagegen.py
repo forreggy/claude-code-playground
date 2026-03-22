@@ -104,8 +104,7 @@ async def generate_meme_image(prompt: str, caption: str) -> io.BytesIO | None:
             prompt=prompt,
             n=1,
             size=config.IMAGE_SIZE,
-            quality=config.IMAGE_QUALITY,
-            response_format="b64_json",
+            quality=config.IMAGE_QUALITY
         )
 
         image_bytes = base64.b64decode(response.data[0].b64_json)
