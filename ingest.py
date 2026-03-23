@@ -33,7 +33,7 @@ async def handle_message(message: Message) -> None:
         return
 
     user_id = hashlib.sha256(str(message.from_user.id).encode()).hexdigest()[:12]
-    username = message.from_user.username
+    username = message.from_user.full_name or message.from_user.username or "Аноним"
     timestamp = int(message.date.timestamp())
 
     await database.save_message(
@@ -42,4 +42,4 @@ async def handle_message(message: Message) -> None:
         text=text,
         timestamp=timestamp,
     )
-    logger.info("Принято сообщение от %s (@%s)", user_id, username)
+    logger.info("Принято сообщение от %s (%s)", user_id, username)
