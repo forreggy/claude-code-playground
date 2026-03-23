@@ -55,7 +55,7 @@ async def run_daily_summary(bot: Bot) -> None:
             len(messages),
             _MIN_MESSAGES,
         )
-        await bot.send_message(config.ALLOWED_CHAT_ID, _QUIET_DAY_TEXT)
+        await bot.send_message(config.SUMMARY_CHAT_ID, _QUIET_DAY_TEXT)
         return
 
     messages_for_llm = [{"username": m["username"], "text": m["text"]} for m in messages]
@@ -86,10 +86,10 @@ async def run_daily_summary(bot: Bot) -> None:
 
                 if photo:
                     await bot.send_photo(
-                        config.ALLOWED_CHAT_ID,
+                        config.SUMMARY_CHAT_ID,
                         photo=BufferedInputFile(photo.read(), filename="meme.png"),
                     )
-#                    await bot.send_photo(config.ALLOWED_CHAT_ID, photo=photo)
+#                    await bot.send_photo(config.SUMMARY_CHAT_ID, photo=photo)
 #                    logger.info("Картинка МЕМ ДНЯ отправлена")
                 else:
                     logger.warning("Не удалось сгенерировать картинку за %d попыток", _IMAGE_MAX_ATTEMPTS)
@@ -104,7 +104,7 @@ async def run_daily_summary(bot: Bot) -> None:
             created_at = int(time.time())
             await database.save_summary(date_str, summary, created_at)
             await bot.send_message(
-                config.ALLOWED_CHAT_ID, summary_text, parse_mode="HTML"
+                config.SUMMARY_CHAT_ID, summary_text, parse_mode="HTML"
             )
             logger.info("Сводка за %s успешно отправлена", date_str)
             break
