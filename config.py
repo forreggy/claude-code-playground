@@ -30,8 +30,14 @@ def _parse_admin_ids() -> frozenset[int]:
 
 BOT_TOKEN: str = _require("BOT_TOKEN")
 ALLOWED_CHAT_ID: int = int(_require("ALLOWED_CHAT_ID"))
+SUMMARY_CHAT_ID: int = int(os.environ.get("SUMMARY_CHAT_ID", "0").strip() or "0") or ALLOWED_CHAT_ID
 OPENAI_API_KEY: str = _require("OPENAI_API_KEY")
 OPENAI_MODEL: str = _require("OPENAI_MODEL")
 SUMMARY_TIME: str = _require("SUMMARY_TIME")
 TIMEZONE: str = _require("TIMEZONE")
 ADMIN_IDS: frozenset[int] = _parse_admin_ids()
+
+# Опциональные настройки генерации картинок (имеют defaults, бот работает без них)
+IMAGE_MODEL: str = os.environ.get("IMAGE_MODEL", "gpt-image-1-mini").strip() or "gpt-image-1-mini"
+IMAGE_QUALITY: str = os.environ.get("IMAGE_QUALITY", "low").strip() or "low"
+IMAGE_SIZE: str = os.environ.get("IMAGE_SIZE", "1024x1024").strip() or "1024x1024"
