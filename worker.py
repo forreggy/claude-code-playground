@@ -110,7 +110,7 @@ async def run_daily_summary(bot: Bot) -> None:
                 ).lstrip("\n")
 
             created_at = int(time.time())
-            await database.save_summary(date_str, summary, created_at, image_path=image_path)
+            await database.save_summary(date_str, summary_text, created_at, image_path=image_path)
             await bot.send_message(
                 config.SUMMARY_CHAT_ID, summary_text, parse_mode="HTML"
             )
