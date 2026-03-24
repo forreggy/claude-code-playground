@@ -14,6 +14,7 @@
 import asyncio
 import datetime
 import logging
+import pathlib
 import time
 
 import re
@@ -35,6 +36,7 @@ _RETRY_INTERVAL = 60
 _IMAGE_RETRY_INTERVAL = 30
 _IMAGE_MAX_ATTEMPTS = 3
 _CLEANUP_AGE = 48 * 3600  # 48 часов в секундах
+_MEMES_DIR = pathlib.Path("static/memes")
 
 
 async def run_daily_summary(bot: Bot) -> None:
@@ -68,6 +70,7 @@ async def run_daily_summary(bot: Bot) -> None:
 
 	    # Попытка сгенерировать и отправить картинку (не блокирует текст)
             photo = None
+            image_path = None
             if parsed["image_prompt"] and parsed["image_caption"]:
                 for attempt in range(_IMAGE_MAX_ATTEMPTS):
                     photo = await imagegen.generate_meme_image(
@@ -89,8 +92,13 @@ async def run_daily_summary(bot: Bot) -> None:
                         config.SUMMARY_CHAT_ID,
                         photo=BufferedInputFile(photo.read(), filename="meme.png"),
                     )
-#                    await bot.send_photo(config.SUMMARY_CHAT_ID, photo=photo)
-#                    logger.info("Картинка МЕМ ДНЯ отправлена")
+                    # Сохранить картинку на диск для веб-ленты
+                    photo.seek(0)
+                    _MEMES_DIR.mkdir(parents=True, exist_ok=True)
+                    file_path = _MEMES_DIR / f"{date_str}.png"
+                    file_path.write_bytes(photo.read())
+                    image_path = f"static/memes/{date_str}.png"
+                    logger.info("Картинка сохранена: %s", image_path)
                 else:
                     logger.warning("Не удалось сгенерировать картинку за %d попыток", _IMAGE_MAX_ATTEMPTS)
 
@@ -102,7 +110,7 @@ async def run_daily_summary(bot: Bot) -> None:
                 ).lstrip("\n")
 
             created_at = int(time.time())
-            await database.save_summary(date_str, summary, created_at)
+            await database.save_summary(date_str, summary, created_at, image_path=image_path)
             await bot.send_message(
                 config.SUMMARY_CHAT_ID, summary_text, parse_mode="HTML"
             )

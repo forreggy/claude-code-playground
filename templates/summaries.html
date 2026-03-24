@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+{% if summaries %}
+    {% for s in summaries %}
+    <article class="card">
+        <time class="card-date">{{ s.date_display }}</time>
+        {% if s.image_path %}
+        <img class="card-image" src="/{{ s.image_path }}" alt="МЕМ ДНЯ {{ s.date }}" loading="lazy">
+        {% endif %}
+        <div class="card-text">{{ s.summary_text | safe }}</div>
+    </article>
+    {% endfor %}
+{% else %}
+    <p class="empty">Сводок пока нет. Леший ещё спит.</p>
+{% endif %}
+{% endblock %}

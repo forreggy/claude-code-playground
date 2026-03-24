@@ -1,13 +1,16 @@
-"""Точка входа: запуск Telegram-бота.
+"""Точка входа: запуск Telegram-бота и веб-сервера.
 
 Инициализирует базу данных, регистрирует хэндлеры из ingest,
 настраивает APScheduler для ежедневной генерации сводки,
-затем стартует aiogram polling и планировщик одновременно.
+запускает aiohttp веб-сервер для публичной ленты сводок,
+затем стартует aiogram polling. Веб-сервер и polling работают
+параллельно в одном event loop.
 """
 
 import asyncio
 import logging
 
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -16,13 +19,14 @@ import config
 import database
 import ingest
 import worker
+from web_app import create_web_app
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    """Инициализировать бота, запустить scheduler и polling."""
+    """Инициализировать бота, запустить web-сервер, scheduler и polling."""
     await database.init_db()
 
     bot = Bot(token=config.BOT_TOKEN)
@@ -38,16 +42,6 @@ async def main() -> None:
         args=[bot],
     )
 
-#    from datetime import datetime, timedelta, timezone
-#    msk = timezone(timedelta(hours=3))
-#    test_time = datetime.now(msk) + timedelta(minutes=2)
-#    scheduler.add_job(
-#	 worker.run_daily_summary,
-#         'date',
-#         run_date=test_time,
-#         args=[bot],
-#    )
-
     scheduler.start()
     logger.info(
         "Scheduler запущен. Сводка будет генерироваться в %s (%s)",
@@ -55,12 +49,21 @@ async def main() -> None:
         config.TIMEZONE,
     )
 
+    # Запуск веб-сервера (non-blocking, работает в фоне event loop)
+    app = create_web_app()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", config.WEB_PORT)
+    await site.start()
+    logger.info("Веб-лента запущена на порту %d", config.WEB_PORT)
+
     try:
         logger.info("Бот запущен, начинаю polling")
         await dp.start_polling(bot)
     finally:
+        await runner.cleanup()
         scheduler.shutdown()
-        logger.info("Scheduler остановлен")
+        logger.info("Web-сервер и scheduler остановлены")
 
 
 if __name__ == "__main__":

@@ -53,6 +53,14 @@ async def init_db() -> None:
 
         await db.commit()
 
+        # Миграция: добавить столбец image_path в summaries если его нет
+        cursor = await db.execute("PRAGMA table_info(summaries)")
+        columns = [row[1] for row in await cursor.fetchall()]
+        if "image_path" not in columns:
+            await db.execute("ALTER TABLE summaries ADD COLUMN image_path TEXT")
+            await db.commit()
+            logger.info("Миграция: добавлен столбец image_path в summaries")
+
     logger.info("База данных инициализирована: %s", DB_PATH)
 
 
@@ -95,21 +103,48 @@ async def get_messages_since(since_ts: int) -> list[dict]:
         ]
 
 
-async def save_summary(date: str, summary_text: str, created_at: int) -> None:
+async def save_summary(
+    date: str,
+    summary_text: str,
+    created_at: int,
+    image_path: str | None = None,
+) -> None:
     """Сохранить готовую сводку в таблицу summaries.
 
     Args:
         date: дата в формате YYYY-MM-DD
         summary_text: полный текст сводки
         created_at: Unix timestamp момента генерации
+        image_path: относительный путь к картинке МЕМ ДНЯ или None
     """
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO summaries (date, summary_text, created_at) VALUES (?, ?, ?)",
-            (date, summary_text, created_at),
+            "INSERT INTO summaries (date, summary_text, created_at, image_path) VALUES (?, ?, ?, ?)",
+            (date, summary_text, created_at, image_path),
         )
         await db.commit()
     logger.info("Сводка сохранена в summaries: date=%s", date)
+
+
+async def get_summaries_for_feed(limit: int = 30, offset: int = 0) -> list[dict]:
+    """Вернуть сводки в обратном хронологическом порядке для веб-ленты."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT date, summary_text, image_path, created_at "
+            "FROM summaries ORDER BY date DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "date": row["date"],
+                "summary_text": row["summary_text"],
+                "image_path": row["image_path"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
 
 
 async def delete_messages_older_than(ts: int) -> None:

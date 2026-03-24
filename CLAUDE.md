@@ -21,8 +21,11 @@
 - **APScheduler** — планировщик для ежедневного запуска worker
 - **Pillow** — наложение текстовой подписи на сгенерированные картинки
 - **python-dotenv** — загрузка конфигурации из `.env`
+- **aiohttp.web** — веб-сервер (встроен в aiogram как зависимость)
+- **aiohttp-jinja2** — интеграция шаблонизатора Jinja2 с aiohttp
+- **Jinja2** — движок HTML-шаблонов
 
-Никаких ORM (SQLAlchemy и т.п.) — только чистый SQL через aiosqlite. Никаких веб-фреймворков. Никакого Docker.
+Никаких ORM (SQLAlchemy и т.п.) — только чистый SQL через aiosqlite. Никакого Docker.
 
 ---
 
@@ -36,13 +39,21 @@ claude-code-playground/
 ├── .gitignore              # .env и taigabot.db в нём обязательно
 ├── requirements.txt        # все зависимости с зафиксированными версиями
 │
-├── bot.py                  # точка входа: запуск aiogram polling + APScheduler
+├── bot.py                  # точка входа: запуск aiogram polling + APScheduler + веб-сервер
 ├── config.py               # загрузка и валидация переменных из .env
 ├── database.py             # инициализация БД, все SQL-запросы (CRUD)
 ├── ingest.py               # aiogram-хэндлеры: приём и сохранение сообщений
 ├── worker.py               # ежедневная задача: генерация и отправка сводки
 ├── llm.py                  # обёртка над OpenAI API + системный промпт + парсинг ответа
 ├── imagegen.py             # генерация картинки МЕМ ДНЯ (Image API) + наложение подписи (Pillow)
+├── web_app.py              # aiohttp веб-приложение (публичная лента сводок)
+│
+├── templates/
+│   ├── base.html           # базовый layout
+│   └── summaries.html      # лента сводок
+├── static/
+│   ├── style.css           # стили
+│   └── memes/              # сгенерированные картинки (в .gitignore)
 │
 ├── taigabot.service        # шаблон systemd unit-файла для деплоя на VPS
 └── deploy.md               # пошаговая инструкция по деплою на Ubuntu VPS
@@ -77,7 +88,8 @@ CREATE TABLE IF NOT EXISTS summaries (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     date         TEXT    NOT NULL UNIQUE,  -- формат YYYY-MM-DD
     summary_text TEXT    NOT NULL,         -- полный текст сводки (все 5 блоков)
-    created_at   INTEGER NOT NULL          -- Unix timestamp генерации
+    created_at   INTEGER NOT NULL,         -- Unix timestamp генерации
+    image_path   TEXT                      -- относительный путь к картинке МЕМ ДНЯ (nullable)
 );
 ```
 
@@ -108,6 +120,7 @@ TIMEZONE=         # временная зона, например Europe/Riga
 IMAGE_MODEL=      # модель для генерации картинок, по умолчанию gpt-image-1-mini
 IMAGE_QUALITY=    # качество: low / medium / high, по умолчанию low
 IMAGE_SIZE=       # размер: 1024x1024 / 1024x1536 / 1536x1024, по умолчанию 1024x1024
+WEB_PORT=         # порт веб-интерфейса, по умолчанию 8080
 ```
 
 Файл `.env` никогда не попадает в репозиторий. В репозитории есть только `.env.example` с пустыми значениями и комментариями.

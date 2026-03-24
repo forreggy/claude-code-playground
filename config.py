@@ -41,3 +41,6 @@ ADMIN_IDS: frozenset[int] = _parse_admin_ids()
 IMAGE_MODEL: str = os.environ.get("IMAGE_MODEL", "gpt-image-1-mini").strip() or "gpt-image-1-mini"
 IMAGE_QUALITY: str = os.environ.get("IMAGE_QUALITY", "low").strip() or "low"
 IMAGE_SIZE: str = os.environ.get("IMAGE_SIZE", "1024x1024").strip() or "1024x1024"
+
+# Опциональные настройки веб-ленты
+WEB_PORT: int = int(os.environ.get("WEB_PORT", "8080").strip() or "8080")
