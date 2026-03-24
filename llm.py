@@ -22,7 +22,7 @@ SYSTEM_PROMPT = (
     "Ты работаешь в Telegram. Telegram не понимает Markdown со звёздочками. "
     "Используй ТОЛЬКО HTML-теги: "
     "заголовки блоков — <b>МЕМ ДНЯ</b>, "
-    "никнеймы — <b>@username</b>, "
+    "имена участников — <b>Имя</b>, "
     "акценты — <b>жирный</b> или <i>курсив</i>. "
     "ЗАПРЕЩЕНО использовать * _ ` — эти символы отобразятся буквально как мусор. "
     " "
@@ -75,7 +75,7 @@ SYSTEM_PROMPT = (
     " КРИТЕРИЙ УСПЕХА: сводка удалась, если хотя бы один человек написал «АХАХА», "
     "заскринил, переслал — или сказал «бля, как он это понял»."
     " ФОРМАТИРОВАНИЕ: Используй HTML-теги для оформления — Telegram отображает их нативно. "
-    "Заголовки блоков оформляй как <b>ЗАГОЛОВОК</b>. Никнеймы участников оформляй как <b>@username</b>. "
+    "Заголовки блоков оформляй как <b>ЗАГОЛОВОК</b>. Имена участников оформляй как <b>Имя</b>. "
     "Ключевые фразы и акценты — <i>курсив</i> или <b>жирный</b> по смыслу. "
     "Не используй символы * _ ` — только HTML-теги."
 )
@@ -92,7 +92,7 @@ async def generate_summary(messages: list[dict]) -> str:
     lines = []
     for msg in messages:
         username = msg.get("username")
-        prefix = f"@{username}" if username else "аноним"
+        prefix = username if username else "Аноним"
         lines.append(f"{prefix}: {msg['text']}")
     formatted_input = "\n".join(lines)
 
@@ -139,6 +139,8 @@ def parse_summary_response(text: str) -> dict:
 
     image_prompt = prompt_match.group(1).strip() if prompt_match else None
     image_caption = caption_match.group(1).strip() if caption_match else None
+    if image_caption:
+        image_caption = re.sub(r'<[^>]+>', '', image_caption).strip()
 
     # Удаляем маркеры из текста (и парные, и осиротевшие)
     summary_text = re.sub(
