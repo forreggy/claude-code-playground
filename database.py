@@ -5,8 +5,10 @@
 и настраивает WAL-режим для безопасной параллельной записи.
 
 Таблицы:
-  messages  — входящие сообщения (временное хранилище, чистится каждые 48 ч)
-  summaries — архив готовых сводок (не удаляется)
+  messages       — входящие сообщения (временное хранилище, чистится каждые 48 ч)
+  summaries      — архив готовых сводок (не удаляется)
+  settings       — настройки в формате key-value (в т.ч. system_prompt)
+  prompt_history — история версий системного промпта
 """
 
 import logging
@@ -48,6 +50,23 @@ async def init_db() -> None:
                 date         TEXT    NOT NULL UNIQUE,
                 summary_text TEXT    NOT NULL,
                 created_at   INTEGER NOT NULL
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key        TEXT    PRIMARY KEY,
+                value      TEXT    NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS prompt_history (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt_text TEXT    NOT NULL,
+                changed_at  INTEGER NOT NULL,
+                changed_by  TEXT
             )
         """)
 
@@ -156,3 +175,89 @@ async def delete_messages_older_than(ts: int) -> None:
         )
         await db.commit()
     logger.info("Удалено %d старых сообщений (старше timestamp=%d)", cursor.rowcount, ts)
+
+
+async def get_setting(key: str) -> str | None:
+    """Получить значение настройки по ключу. Возвращает None если ключ не существует."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
+
+async def set_setting(key: str, value: str, updated_at: int) -> None:
+    """Установить значение настройки. INSERT OR REPLACE."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            (key, value, updated_at),
+        )
+        await db.commit()
+
+
+async def delete_setting(key: str) -> None:
+    """Удалить настройку по ключу."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM settings WHERE key = ?", (key,))
+        await db.commit()
+
+
+async def get_prompt_history(limit: int = 20) -> list[dict]:
+    """Вернуть историю промптов в обратном хронологическом порядке.
+
+    Каждый элемент: {"id": int, "prompt_text": str, "changed_at": int, "changed_by": str | None}
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, prompt_text, changed_at, changed_by FROM prompt_history "
+            "ORDER BY changed_at DESC LIMIT ?",
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def save_prompt_history(
+    prompt_text: str,
+    changed_at: int,
+    changed_by: str | None = None,
+) -> None:
+    """Сохранить версию промпта в историю."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO prompt_history (prompt_text, changed_at, changed_by) VALUES (?, ?, ?)",
+            (prompt_text, changed_at, changed_by),
+        )
+        await db.commit()
+
+
+async def get_stats() -> dict:
+    """Собрать статистику из существующих таблиц.
+
+    Возвращает:
+    {
+        "total_summaries": int,        — количество записей в summaries
+        "last_summary_date": str|None, — дата последней сводки (YYYY-MM-DD) или None
+        "first_summary_date": str|None,— дата первой сводки (начало наблюдений)
+        "messages_in_buffer": int,     — количество записей в messages (ожидают сводку)
+    }
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*), MAX(date), MIN(date) FROM summaries"
+        )
+        row = await cursor.fetchone()
+        total = row[0]
+        last_date = row[1]
+        first_date = row[2]
+
+        cursor = await db.execute("SELECT COUNT(*) FROM messages")
+        buf_row = await cursor.fetchone()
+
+    return {
+        "total_summaries": total,
+        "last_summary_date": last_date,
+        "first_summary_date": first_date,
+        "messages_in_buffer": buf_row[0],
+    }

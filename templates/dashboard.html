@@ -1,17 +1,170 @@
 <section class="dashboard">
     <h2 class="dashboard-title">Пульт Лешего</h2>
     <div class="dashboard-grid">
+
+        <!-- Карточка 1: Чат с Лешим (заглушка) -->
+        <div class="dashboard-card">
+            <h3>🌲 Чат с Лешим</h3>
+            <p class="placeholder">Леший ещё в лесу. Скоро выйдет...</p>
+        </div>
+
+        <!-- Карточка 2: Статистика -->
         <div class="dashboard-card">
             <h3>Статистика</h3>
-            <p class="placeholder">Здесь будет статистика</p>
+            <div id="stats-content"><p class="placeholder">Загрузка...</p></div>
         </div>
-        <div class="dashboard-card">
-            <h3>Логи</h3>
-            <p class="placeholder">Здесь будут логи</p>
+
+        <!-- Карточка 3: Редактор промпта (полная ширина) -->
+        <div class="dashboard-card prompt-card">
+            <h3>Редактор промпта</h3>
+            <textarea id="prompt-textarea" rows="15" spellcheck="false" placeholder="Загрузка промпта..."></textarea>
+            <div class="prompt-actions">
+                <button id="save-prompt-btn" onclick="savePrompt()">Сохранить</button>
+                <button id="reset-prompt-btn" onclick="resetPrompt()">Сбросить к дефолту</button>
+            </div>
+            <div class="prompt-history">
+                <button onclick="toggleHistory()" id="history-toggle">Показать историю (0)</button>
+                <div id="history-list" style="display:none"></div>
+            </div>
         </div>
-        <div class="dashboard-card">
-            <h3>Промпт</h3>
-            <p class="placeholder">Здесь будет редактор промпта</p>
-        </div>
+
     </div>
 </section>
+
+<script>
+(function () {
+    var historyData = [];
+    var historyVisible = false;
+
+    function formatDate(ts) {
+        return new Date(ts * 1000).toLocaleString('ru-RU', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    function formatDateShort(dateStr) {
+        if (!dateStr) return '—';
+        var parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        var months = ['января','февраля','марта','апреля','мая','июня',
+                      'июля','августа','сентября','октября','ноября','декабря'];
+        return parseInt(parts[2]) + ' ' + months[parseInt(parts[1]) - 1] + ' ' + parts[0];
+    }
+
+    function loadStats() {
+        fetch('/admin/stats')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var el = document.getElementById('stats-content');
+                el.innerHTML = '<div class="stats-grid">' +
+                    '<div class="stat-item"><div class="stat-label">Сводок в архиве</div>' +
+                    '<div class="stat-value">' + data.total_summaries + '</div></div>' +
+                    '<div class="stat-item"><div class="stat-label">Последняя сводка</div>' +
+                    '<div class="stat-value">' + formatDateShort(data.last_summary_date) + '</div></div>' +
+                    '<div class="stat-item"><div class="stat-label">Наблюдение с</div>' +
+                    '<div class="stat-value">' + formatDateShort(data.first_summary_date) + '</div></div>' +
+                    '<div class="stat-item"><div class="stat-label">В буфере сейчас</div>' +
+                    '<div class="stat-value">' + data.messages_in_buffer + '</div></div>' +
+                    '</div>';
+            })
+            .catch(function () {
+                document.getElementById('stats-content').innerHTML =
+                    '<p class="placeholder">Не удалось загрузить</p>';
+            });
+    }
+
+    function renderHistory() {
+        var el = document.getElementById('history-list');
+        var btn = document.getElementById('history-toggle');
+        btn.textContent = (historyVisible ? 'Скрыть историю' : 'Показать историю') +
+                          ' (' + historyData.length + ')';
+        if (!historyData.length) {
+            el.innerHTML = '<p class="placeholder" style="margin-top:0.5rem">История пуста</p>';
+            return;
+        }
+        el.innerHTML = historyData.map(function (entry) {
+            var meta = formatDate(entry.changed_at);
+            if (entry.changed_by) meta += ' · ' + entry.changed_by;
+            return '<div class="history-entry" onclick="applyHistory(' + entry.id + ')">' +
+                '<div class="history-meta">' + meta + '</div>' +
+                '<div class="history-preview">' + entry.preview.replace(/</g, '&lt;') + '…</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    window.applyHistory = function (id) {
+        var entry = historyData.find(function (e) { return e.id === id; });
+        if (entry) {
+            document.getElementById('prompt-textarea').value = entry.prompt_text;
+        }
+    };
+
+    function loadPrompt() {
+        fetch('/admin/prompt')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                document.getElementById('prompt-textarea').value = data.current_prompt;
+                historyData = data.history;
+                renderHistory();
+            })
+            .catch(function () {
+                document.getElementById('prompt-textarea').placeholder = 'Не удалось загрузить промпт';
+            });
+    }
+
+    window.savePrompt = function () {
+        var text = document.getElementById('prompt-textarea').value.trim();
+        if (!text) return;
+        var btn = document.getElementById('save-prompt-btn');
+        btn.disabled = true;
+        fetch('/admin/prompt', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt_text: text})
+        })
+            .then(function (r) { return r.json(); })
+            .then(function () {
+                btn.textContent = 'Сохранено ✓';
+                setTimeout(function () {
+                    btn.textContent = 'Сохранить';
+                    btn.disabled = false;
+                }, 2000);
+                loadPrompt();
+            })
+            .catch(function () {
+                btn.textContent = 'Ошибка';
+                setTimeout(function () {
+                    btn.textContent = 'Сохранить';
+                    btn.disabled = false;
+                }, 2000);
+            });
+    };
+
+    window.resetPrompt = function () {
+        if (!confirm('Вернуть промпт по умолчанию?')) return;
+        var btn = document.getElementById('reset-prompt-btn');
+        btn.disabled = true;
+        fetch('/admin/prompt/reset', {method: 'POST'})
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                document.getElementById('prompt-textarea').value = data.prompt;
+                btn.disabled = false;
+                loadPrompt();
+            })
+            .catch(function () {
+                btn.disabled = false;
+            });
+    };
+
+    window.toggleHistory = function () {
+        historyVisible = !historyVisible;
+        var el = document.getElementById('history-list');
+        el.style.display = historyVisible ? 'block' : 'none';
+        renderHistory();
+    };
+
+    loadStats();
+    loadPrompt();
+})();
+</script>

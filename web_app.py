@@ -8,8 +8,10 @@
 """
 
 import datetime
+import json
 import logging
 import pathlib
+import time
 
 import aiohttp_jinja2
 import jinja2
@@ -21,6 +23,7 @@ from cryptography.fernet import Fernet
 import auth
 import config
 import database
+import llm
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +65,10 @@ def create_web_app() -> web.Application:
     app.router.add_get("/auth/login", auth.handle_login_page)
     app.router.add_get("/auth/callback", auth.handle_auth_callback)
     app.router.add_post("/auth/logout", auth.handle_logout)
+    app.router.add_get("/admin/stats", handle_admin_stats)
+    app.router.add_get("/admin/prompt", handle_admin_prompt)
+    app.router.add_post("/admin/prompt", handle_admin_prompt_save)
+    app.router.add_post("/admin/prompt/reset", handle_admin_prompt_reset)
     app.router.add_static(
         "/static", path=str(_BASE_DIR / "static"), name="static",
     )
@@ -80,3 +87,104 @@ async def handle_index(request: web.Request) -> dict:
         "user": request.get("user"),
         "bot_id": config.BOT_ID,
     }
+
+
+def _get_changed_by(user: dict) -> str:
+    """Сформировать строку changed_by из данных сессии авторизации."""
+    username = user.get("username")
+    if username:
+        return f"@{username}"
+    return user.get("first_name", "admin")
+
+
+async def handle_admin_stats(request: web.Request) -> web.Response:
+    """Вернуть статистику для дашборда в JSON."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+    stats = await database.get_stats()
+    return web.Response(
+        text=json.dumps(stats, ensure_ascii=False),
+        content_type="application/json",
+    )
+
+
+async def handle_admin_prompt(request: web.Request) -> web.Response:
+    """Вернуть текущий промпт и историю версий в JSON."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+
+    stored = await database.get_setting("system_prompt")
+    is_default = stored is None
+    current_prompt = stored if stored is not None else llm.DEFAULT_SYSTEM_PROMPT
+
+    history_rows = await database.get_prompt_history(limit=20)
+    history = []
+    for row in history_rows:
+        history.append({
+            "id": row["id"],
+            "prompt_text": row["prompt_text"],
+            "changed_at": row["changed_at"],
+            "changed_by": row["changed_by"],
+            "preview": row["prompt_text"][:80],
+        })
+
+    data = {
+        "current_prompt": current_prompt,
+        "is_default": is_default,
+        "history": history,
+    }
+    return web.Response(
+        text=json.dumps(data, ensure_ascii=False),
+        content_type="application/json",
+    )
+
+
+async def handle_admin_prompt_save(request: web.Request) -> web.Response:
+    """Сохранить новый промпт в settings и записать старый в историю."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+
+    body = await request.json()
+    new_prompt = body.get("prompt_text", "").strip()
+    if not new_prompt:
+        raise web.HTTPBadRequest(text="prompt_text не может быть пустым")
+
+    now = int(time.time())
+    changed_by = _get_changed_by(user)
+
+    # Сохраняем текущий промпт в историю перед заменой
+    stored = await database.get_setting("system_prompt")
+    old_prompt = stored if stored is not None else llm.DEFAULT_SYSTEM_PROMPT
+    await database.save_prompt_history(old_prompt, now, changed_by)
+
+    await database.set_setting("system_prompt", new_prompt, now)
+    logger.info("Промпт обновлён пользователем %s", changed_by)
+
+    return web.Response(
+        text=json.dumps({"status": "ok"}, ensure_ascii=False),
+        content_type="application/json",
+    )
+
+
+async def handle_admin_prompt_reset(request: web.Request) -> web.Response:
+    """Сбросить промпт к дефолту: удалить из settings, сохранить в историю."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+
+    now = int(time.time())
+    changed_by = _get_changed_by(user)
+
+    stored = await database.get_setting("system_prompt")
+    if stored is not None:
+        await database.save_prompt_history(stored, now, changed_by)
+        await database.delete_setting("system_prompt")
+        logger.info("Промпт сброшен к дефолту пользователем %s", changed_by)
+
+    return web.Response(
+        text=json.dumps({"status": "ok", "prompt": llm.DEFAULT_SYSTEM_PROMPT}, ensure_ascii=False),
+        content_type="application/json",
+    )

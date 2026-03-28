@@ -91,7 +91,7 @@ main {
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
 }
 
@@ -112,6 +112,120 @@ main {
     color: #aaa;
     font-style: italic;
     font-size: 0.9rem;
+}
+
+/* --- Prompt card (full width) --- */
+
+.prompt-card {
+    grid-column: 1 / -1;
+}
+
+#prompt-textarea {
+    width: 100%;
+    font-family: monospace;
+    font-size: 0.85rem;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    resize: vertical;
+    margin-top: 0.5rem;
+    background: #fafafa;
+    line-height: 1.5;
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.prompt-actions button {
+    padding: 0.4rem 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.prompt-actions button:hover {
+    background: #f0f0f0;
+}
+
+.prompt-actions button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.prompt-history {
+    margin-top: 1rem;
+}
+
+.prompt-history > button {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    font-family: inherit;
+}
+
+.history-entry {
+    padding: 0.5rem;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    background: #fafafa;
+    transition: background 0.15s;
+}
+
+.history-entry:hover {
+    background: #f0f0f0;
+}
+
+.history-meta {
+    color: #888;
+    font-size: 0.78rem;
+    margin-bottom: 0.2rem;
+}
+
+.history-preview {
+    color: #555;
+    font-family: monospace;
+    word-break: break-all;
+}
+
+/* --- Stats grid --- */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.stat-item {
+    padding: 0.5rem;
+    background: #f0f0f0;
+    border-radius: 6px;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-top: 0.1rem;
 }
 
 /* --- Summary cards --- */

@@ -14,10 +14,11 @@ import re
 import openai
 
 import config
+import database
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = (
+DEFAULT_SYSTEM_PROMPT = (
     "КРИТИЧЕСКИ ВАЖНО — ФОРМАТ ОТВЕТА: "
     "Ты работаешь в Telegram. Telegram не понимает Markdown со звёздочками. "
     "Используй ТОЛЬКО HTML-теги: "
@@ -87,6 +88,16 @@ SYSTEM_PROMPT = (
 _client = openai.AsyncOpenAI(api_key=config.OPENAI_API_KEY)
 
 
+async def get_current_prompt() -> str:
+    """Получить текущий системный промпт.
+
+    Сначала пытается прочитать из таблицы settings (ключ 'system_prompt').
+    Если нет — возвращает DEFAULT_SYSTEM_PROMPT.
+    """
+    stored = await database.get_setting("system_prompt")
+    return stored if stored is not None else DEFAULT_SYSTEM_PROMPT
+
+
 async def generate_summary(messages: list[dict]) -> str:
     """Генерирует вечернюю сводку дня на основе сообщений из чата.
 
@@ -102,9 +113,10 @@ async def generate_summary(messages: list[dict]) -> str:
 
     logger.info("Отправляем %d сообщений в OpenAI для генерации сводки", len(messages))
 
+    current_prompt = await get_current_prompt()
     response = await _client.responses.create(
         model=config.OPENAI_MODEL,
-        instructions=SYSTEM_PROMPT,
+        instructions=current_prompt,
         input=formatted_input,
         store=False,
     )
