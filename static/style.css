@@ -1,3 +1,18 @@
+:root {
+    --bg-deep: #0d1117;
+    --bg-card: #161b22;
+    --bg-input: #1c2128;
+    --border: #30363d;
+    --border-hover: #484f58;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent-green: #2ea043;
+    --accent-green-dim: #238636;
+    --accent-amber: #d4a72c;
+    --accent-amber-dim: #9e7c21;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -7,8 +22,8 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
-    background: #f5f5f5;
-    color: #333;
+    background: var(--bg-deep);
+    color: var(--text-primary);
     line-height: 1.6;
     padding: 1rem;
 }
@@ -27,25 +42,25 @@ body {
 
 .auth-btn {
     padding: 0.4rem 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #fff;
-    color: #333;
+    background: var(--bg-input);
+    color: var(--text-primary);
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
     text-decoration: none;
-    transition: background 0.15s;
+    transition: border-color 0.15s;
 }
 
 .auth-btn:hover {
-    background: #f0f0f0;
+    border-color: var(--accent-green);
 }
 
 .auth-name {
     font-size: 0.85rem;
-    color: #555;
+    color: var(--text-secondary);
 }
 
 /* --- Header --- */
@@ -56,12 +71,13 @@ header {
 }
 
 header h1 {
+    font-family: 'Playfair Display', Georgia, serif;
     font-size: 1.8rem;
-    color: #2c3e50;
+    color: var(--accent-amber);
 }
 
 .subtitle {
-    color: #888;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin-top: 0.3rem;
 }
@@ -78,14 +94,15 @@ main {
 .dashboard {
     margin-bottom: 2rem;
     padding: 1.5rem;
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .dashboard-title {
+    font-family: 'Playfair Display', Georgia, serif;
     font-size: 1.3rem;
-    color: #2c3e50;
+    color: var(--accent-amber);
     margin-bottom: 1rem;
 }
 
@@ -97,19 +114,20 @@ main {
 
 .dashboard-card {
     padding: 1rem;
-    background: #f9f9f9;
+    background: var(--bg-input);
     border-radius: 8px;
-    border: 1px solid #eee;
+    border: 1px solid var(--border);
 }
 
 .dashboard-card h3 {
+    font-family: 'Playfair Display', Georgia, serif;
     font-size: 1rem;
-    color: #2c3e50;
+    color: var(--text-primary);
     margin-bottom: 0.5rem;
 }
 
 .placeholder {
-    color: #aaa;
+    color: var(--text-muted);
     font-style: italic;
     font-size: 0.9rem;
 }
@@ -125,12 +143,17 @@ main {
     font-family: monospace;
     font-size: 0.85rem;
     padding: 0.75rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 6px;
     resize: vertical;
     margin-top: 0.5rem;
-    background: #fafafa;
+    background: var(--bg-input);
+    color: var(--text-primary);
     line-height: 1.5;
+}
+
+#prompt-textarea::placeholder {
+    color: var(--text-muted);
 }
 
 .prompt-actions {
@@ -141,17 +164,22 @@ main {
 
 .prompt-actions button {
     padding: 0.4rem 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #fff;
+    background: var(--bg-input);
+    color: var(--text-primary);
     cursor: pointer;
     font-size: 0.85rem;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: border-color 0.15s;
 }
 
 .prompt-actions button:hover {
-    background: #f0f0f0;
+    border-color: var(--border-hover);
+}
+
+.prompt-actions #save-prompt-btn:hover {
+    border-color: var(--accent-green);
 }
 
 .prompt-actions button:disabled {
@@ -166,7 +194,7 @@ main {
 .prompt-history > button {
     background: none;
     border: none;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 0.85rem;
     cursor: pointer;
     text-decoration: underline;
@@ -176,27 +204,27 @@ main {
 
 .history-entry {
     padding: 0.5rem;
-    border: 1px solid #eee;
+    border: 1px solid var(--border);
     border-radius: 4px;
     margin-top: 0.5rem;
     cursor: pointer;
     font-size: 0.82rem;
-    background: #fafafa;
-    transition: background 0.15s;
+    background: var(--bg-input);
+    transition: border-color 0.15s;
 }
 
 .history-entry:hover {
-    background: #f0f0f0;
+    border-color: var(--border-hover);
 }
 
 .history-meta {
-    color: #888;
+    color: var(--text-muted);
     font-size: 0.78rem;
     margin-bottom: 0.2rem;
 }
 
 .history-preview {
-    color: #555;
+    color: var(--text-secondary);
     font-family: monospace;
     word-break: break-all;
 }
@@ -212,28 +240,28 @@ main {
 
 .stat-item {
     padding: 0.5rem;
-    background: #f0f0f0;
+    background: var(--bg-input);
     border-radius: 6px;
 }
 
 .stat-label {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--text-muted);
 }
 
 .stat-value {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--accent-green);
     margin-top: 0.1rem;
 }
 
 /* --- Summary cards --- */
 
 .card {
-    background: #fff;
+    background: var(--bg-card);
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     margin-bottom: 1.5rem;
     overflow: hidden;
 }
@@ -241,7 +269,7 @@ main {
 .card-date {
     display: block;
     padding: 0.8rem 1rem 0;
-    color: #888;
+    color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 600;
 }
@@ -250,33 +278,34 @@ main {
     width: 100%;
     display: block;
     margin-top: 0.5rem;
-    border-radius: 0;
+    border-radius: 8px;
 }
 
 .card-text {
     padding: 1rem;
     white-space: pre-line;
     font-size: 0.95rem;
+    color: var(--text-primary);
 }
 
 .card-text b {
-    color: #2c3e50;
+    color: var(--accent-amber);
 }
 
 .card-text i {
-    color: #7f8c8d;
+    color: var(--text-secondary);
 }
 
 .empty {
     text-align: center;
     padding: 3rem;
-    color: #888;
+    color: var(--text-muted);
     font-size: 1.1rem;
 }
 
 footer {
     text-align: center;
     padding: 2rem 0;
-    color: #aaa;
+    color: var(--text-muted);
     font-size: 0.8rem;
 }
