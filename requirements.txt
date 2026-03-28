@@ -6,3 +6,5 @@ python-dotenv==1.2.2
 Pillow==12.1.1
 aiohttp-jinja2==1.6
 Jinja2==3.1.6
+aiohttp-session==2.12.1
+PyJWT[crypto]==2.12.1

@@ -13,6 +13,42 @@ body {
     padding: 1rem;
 }
 
+/* --- Auth bar (fixed top-right) --- */
+
+.auth-bar {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.auth-btn {
+    padding: 0.4rem 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.auth-btn:hover {
+    background: #f0f0f0;
+}
+
+.auth-name {
+    font-size: 0.85rem;
+    color: #555;
+}
+
+/* --- Header --- */
+
 header {
     text-align: center;
     padding: 2rem 0 1.5rem;
@@ -29,10 +65,55 @@ header h1 {
     margin-top: 0.3rem;
 }
 
+/* --- Layout --- */
+
 main {
     max-width: 700px;
     margin: 0 auto;
 }
+
+/* --- Dashboard --- */
+
+.dashboard {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-title {
+    font-size: 1.3rem;
+    color: #2c3e50;
+    margin-bottom: 1rem;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+.dashboard-card {
+    padding: 1rem;
+    background: #f9f9f9;
+    border-radius: 8px;
+    border: 1px solid #eee;
+}
+
+.dashboard-card h3 {
+    font-size: 1rem;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.placeholder {
+    color: #aaa;
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+/* --- Summary cards --- */
 
 .card {
     background: #fff;

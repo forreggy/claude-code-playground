@@ -37,6 +37,10 @@ SUMMARY_TIME: str = _require("SUMMARY_TIME")
 TIMEZONE: str = _require("TIMEZONE")
 ADMIN_IDS: frozenset[int] = _parse_admin_ids()
 
+# Авторизация
+BOT_ID: int = int(BOT_TOKEN.split(":")[0])
+SESSION_SECRET_KEY: str = _require("SESSION_SECRET_KEY")
+
 # Опциональные настройки генерации картинок (имеют defaults, бот работает без них)
 IMAGE_MODEL: str = os.environ.get("IMAGE_MODEL", "gpt-image-1-mini").strip() or "gpt-image-1-mini"
 IMAGE_QUALITY: str = os.environ.get("IMAGE_QUALITY", "low").strip() or "low"
