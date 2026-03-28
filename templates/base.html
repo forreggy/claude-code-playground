@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Леший — Летопись чата</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="https://telegram.org/js/telegram-widget.js?22"></script>
 </head>
 <body>
     <div class="auth-bar">
@@ -13,7 +12,7 @@
             <span class="auth-name">{{ user.first_name }}</span>
             <button class="auth-btn" onclick="handleLogout()">ВЫХОД</button>
         {% else %}
-            <button class="auth-btn" onclick="handleLogin()">ВХОД</button>
+            <a href="/auth/login" class="auth-btn">ВХОД</a>
         {% endif %}
     </div>
     <header>
@@ -25,46 +24,6 @@
     </main>
     <footer>TaigaBot Lite</footer>
     <script>
-    function handleLogin() {
-        Telegram.Login.auth(
-            { bot_id: {{ bot_id }}, request_access: ['write'] },
-            async (data) => {
-                if (!data) return;
-
-                let body;
-                if (data.id_token) {
-                    body = { id_token: data.id_token };
-                } else if (data.hash) {
-                    body = {
-                        legacy: true,
-                        id: data.id,
-                        first_name: data.first_name,
-                        last_name: data.last_name || '',
-                        username: data.username || '',
-                        photo_url: data.photo_url || '',
-                        auth_date: data.auth_date,
-                        hash: data.hash
-                    };
-                } else {
-                    alert('Неизвестный формат ответа от Telegram');
-                    return;
-                }
-
-                const resp = await fetch('/auth/callback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (resp.ok) {
-                    window.location.reload();
-                } else {
-                    const result = await resp.json();
-                    alert(result.error || 'Доступ запрещён');
-                }
-            }
-        );
-    }
-
     function handleLogout() {
         fetch('/auth/logout', { method: 'POST' }).then(() => window.location.reload());
     }

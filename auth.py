@@ -1,8 +1,10 @@
 """Авторизация через Telegram Login и управление сессиями.
 
-Поддерживает два формата ответа от Telegram Login Widget:
-1. Новый JWT flow — id_token валидируется через JWKS endpoint Telegram.
-2. Legacy hash flow — данные проверяются через HMAC-SHA256 с токеном бота.
+Используется стандартный Telegram Login Widget в режиме redirect (data-auth-url).
+Telegram перенаправляет браузер на /auth/callback с данными в query-параметрах.
+Валидация через HMAC-SHA256 (legacy hash flow).
+
+JWT-валидация через JWKS сохранена для возможного использования в будущем.
 
 Middleware загружает данные пользователя из сессии в request['user'].
 """
@@ -14,6 +16,7 @@ import logging
 import time
 from typing import Any
 
+import aiohttp_jinja2
 import jwt
 from jwt import PyJWKClient
 from aiohttp import web
@@ -31,7 +34,7 @@ TELEGRAM_ISSUER = "https://oauth.telegram.org"
 _jwks_client = PyJWKClient(TELEGRAM_JWKS_URL)
 
 
-# --- Валидация JWT (новый flow) ---
+# --- Валидация JWT (новый flow, сохранена для будущего использования) ---
 
 async def _validate_jwt(id_token: str) -> dict[str, Any]:
     """Валидировать JWT id_token от Telegram Login.
@@ -61,10 +64,10 @@ async def _validate_jwt(id_token: str) -> dict[str, Any]:
 # --- Валидация legacy hash ---
 
 def _validate_legacy_hash(data: dict[str, Any]) -> dict[str, Any]:
-    """Валидировать hash-based данные по старому протоколу Telegram Login.
+    """Валидировать hash-based данные по протоколу Telegram Login Widget.
 
     Алгоритм: https://core.telegram.org/widgets/login#checking-authorization
-    1. data-check-string: все поля кроме hash/legacy, отсортированные, key=value через \\n
+    1. data-check-string: все поля кроме hash, отсортированные, key=value через \\n
     2. secret_key = SHA256(bot_token)
     3. Сравнить HMAC-SHA256(secret_key, data-check-string) с hash
     4. Проверить auth_date не старше 86400 секунд (1 день)
@@ -74,8 +77,8 @@ def _validate_legacy_hash(data: dict[str, Any]) -> dict[str, Any]:
     """
     received_hash = data.get("hash", "")
 
-    # Собираем data-check-string (все поля кроме hash и legacy)
-    check_fields = {k: v for k, v in data.items() if k not in ("hash", "legacy")}
+    # Собираем data-check-string (все поля кроме hash)
+    check_fields = {k: v for k, v in data.items() if k != "hash"}
     data_check_string = "\n".join(
         f"{k}={v}" for k, v in sorted(check_fields.items())
     )
@@ -124,43 +127,41 @@ async def auth_middleware(request: web.Request, handler: Any) -> web.StreamRespo
 
 # --- Хэндлеры ---
 
+async def handle_login_page(request: web.Request) -> web.Response:
+    """GET /auth/login — страница с кнопкой Telegram Login Widget."""
+    return aiohttp_jinja2.render_template("login.html", request, {
+        "bot_username": config.BOT_USERNAME,
+        "auth_callback_url": "https://taiga.ex-mari.com/auth/callback",
+    })
+
+
 async def handle_auth_callback(request: web.Request) -> web.Response:
-    """POST /auth/callback — принять данные авторизации от Telegram Login.
+    """GET /auth/callback — Telegram редиректит сюда с данными в query params.
 
-    Поддерживает два формата:
-    1. {"id_token": "..."} — новый JWT flow
-    2. {"legacy": true, "id": ..., "hash": ..., ...} — legacy hash flow
+    Параметры: id, first_name, last_name, username, photo_url, auth_date, hash.
+    Валидация через HMAC-SHA256.
     """
+    data = dict(request.query)
+
+    if "hash" not in data:
+        return web.Response(text="Отсутствуют данные авторизации", status=400)
+
     try:
-        data = await request.json()
+        user_info = _validate_legacy_hash(data)
     except Exception:
-        return web.json_response({"error": "Неверный формат запроса"}, status=400)
+        logger.warning("Auth validation failed", exc_info=True)
+        return web.Response(
+            text="Авторизация не удалась",
+            status=403,
+            content_type="text/plain; charset=utf-8",
+        )
 
-    # Определяем flow и валидируем
-    if "id_token" in data:
-        try:
-            user_info = await _validate_jwt(data["id_token"])
-        except Exception:
-            logger.warning("Невалидный JWT от Telegram Login", exc_info=True)
-            return web.json_response(
-                {"error": "Невалидный токен авторизации"}, status=403
-            )
-    elif data.get("legacy") and "hash" in data:
-        try:
-            user_info = _validate_legacy_hash(data)
-        except Exception:
-            logger.warning("Невалидный hash от Telegram Login", exc_info=True)
-            return web.json_response(
-                {"error": "Невалидная подпись данных"}, status=403
-            )
-    else:
-        return web.json_response({"error": "Неверный формат данных"}, status=400)
-
-    # Проверка по белому списку
     user_id = int(user_info["id"])
     if user_id not in config.ADMIN_IDS:
-        return web.json_response(
-            {"error": "Лес закрыт. Ты не из моего леса."}, status=403
+        return web.Response(
+            text="Лес закрыт. Ты не из моего леса.",
+            status=403,
+            content_type="text/plain; charset=utf-8",
         )
 
     # Создание сессии
@@ -170,7 +171,9 @@ async def handle_auth_callback(request: web.Request) -> web.Response:
     session["username"] = user_info.get("username", "")
 
     logger.info("Админ авторизован: %s (id=%d)", user_info.get("first_name"), user_id)
-    return web.json_response({"ok": True})
+
+    # Redirect на главную — пользователь увидит дашборд
+    raise web.HTTPFound("/")
 
 
 async def handle_logout(request: web.Request) -> web.Response:

@@ -39,6 +39,7 @@ ADMIN_IDS: frozenset[int] = _parse_admin_ids()
 
 # Авторизация
 BOT_ID: int = int(BOT_TOKEN.split(":")[0])
+BOT_USERNAME: str = _require("BOT_USERNAME")
 SESSION_SECRET_KEY: str = _require("SESSION_SECRET_KEY")
 
 # Опциональные настройки генерации картинок (имеют defaults, бот работает без них)

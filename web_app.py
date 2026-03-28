@@ -59,7 +59,8 @@ def create_web_app() -> web.Application:
     )
 
     app.router.add_get("/", handle_index)
-    app.router.add_post("/auth/callback", auth.handle_auth_callback)
+    app.router.add_get("/auth/login", auth.handle_login_page)
+    app.router.add_get("/auth/callback", auth.handle_auth_callback)
     app.router.add_post("/auth/logout", auth.handle_logout)
     app.router.add_static(
         "/static", path=str(_BASE_DIR / "static"), name="static",
