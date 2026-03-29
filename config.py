@@ -49,3 +49,19 @@ IMAGE_SIZE: str = os.environ.get("IMAGE_SIZE", "1024x1024").strip() or "1024x102
 
 # Опциональные настройки веб-ленты
 WEB_PORT: int = int(os.environ.get("WEB_PORT", "8080").strip() or "8080")
+
+# Чат с Лешим (TLL-06)
+CHAT_API_BASE: str = _require("CHAT_API_BASE")
+CHAT_API_KEY: str = _require("CHAT_API_KEY")
+CHAT_MODEL: str = _require("CHAT_MODEL")
+
+
+def _parse_dialog_allowed_ids() -> list[int]:
+    """Считать DIALOG_ALLOWED_IDS из окружения, вернуть список int (пустой если не задано)."""
+    raw = os.environ.get("DIALOG_ALLOWED_IDS", "").strip()
+    if not raw:
+        return []
+    return [int(x.strip()) for x in raw.split(",") if x.strip()]
+
+
+DIALOG_ALLOWED_IDS: list[int] = _parse_dialog_allowed_ids()

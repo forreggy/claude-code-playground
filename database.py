@@ -8,7 +8,9 @@
   messages       — входящие сообщения (временное хранилище, чистится каждые 48 ч)
   summaries      — архив готовых сводок (не удаляется)
   settings       — настройки в формате key-value (в т.ч. system_prompt)
-  prompt_history — история версий системного промпта
+  prompt_history — история версий системного промпта (с поддержкой prompt_key)
+  dialogs        — диалоги чата с Лешим (TLL-06)
+  dialog_messages — сообщения диалогов (TLL-06)
 """
 
 import logging
@@ -70,6 +72,34 @@ async def init_db() -> None:
             )
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS dialogs (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL,
+                title      TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_dialogs_user ON dialogs(user_id)
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS dialog_messages (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                dialog_id  INTEGER NOT NULL REFERENCES dialogs(id) ON DELETE CASCADE,
+                role       TEXT    NOT NULL,
+                content    TEXT    NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_dm_dialog ON dialog_messages(dialog_id)
+        """)
+
         await db.commit()
 
         # Миграция: добавить столбец image_path в summaries если его нет
@@ -79,6 +109,16 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE summaries ADD COLUMN image_path TEXT")
             await db.commit()
             logger.info("Миграция: добавлен столбец image_path в summaries")
+
+        # Миграция: добавить столбец prompt_key в prompt_history если его нет
+        cursor = await db.execute("PRAGMA table_info(prompt_history)")
+        columns = [row[1] for row in await cursor.fetchall()]
+        if "prompt_key" not in columns:
+            await db.execute(
+                "ALTER TABLE prompt_history ADD COLUMN prompt_key TEXT DEFAULT 'system_prompt'"
+            )
+            await db.commit()
+            logger.info("Миграция: добавлен столбец prompt_key в prompt_history")
 
     logger.info("База данных инициализирована: %s", DB_PATH)
 
@@ -202,17 +242,21 @@ async def delete_setting(key: str) -> None:
         await db.commit()
 
 
-async def get_prompt_history(limit: int = 20) -> list[dict]:
+async def get_prompt_history(
+    limit: int = 20,
+    prompt_key: str = "system_prompt",
+) -> list[dict]:
     """Вернуть историю промптов в обратном хронологическом порядке.
 
     Каждый элемент: {"id": int, "prompt_text": str, "changed_at": int, "changed_by": str | None}
+    Параметр prompt_key фильтрует по типу промпта (system_prompt, chat_system_prompt и т.д.).
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT id, prompt_text, changed_at, changed_by FROM prompt_history "
-            "ORDER BY changed_at DESC LIMIT ?",
-            (limit,),
+            "WHERE prompt_key = ? ORDER BY changed_at DESC LIMIT ?",
+            (prompt_key, limit),
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
@@ -222,14 +266,163 @@ async def save_prompt_history(
     prompt_text: str,
     changed_at: int,
     changed_by: str | None = None,
+    prompt_key: str = "system_prompt",
 ) -> None:
-    """Сохранить версию промпта в историю."""
+    """Сохранить версию промпта в историю.
+
+    Параметр prompt_key указывает тип промпта (system_prompt, chat_system_prompt и т.д.).
+    Существующие вызовы без prompt_key продолжают работать через дефолтное значение.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO prompt_history (prompt_text, changed_at, changed_by) VALUES (?, ?, ?)",
-            (prompt_text, changed_at, changed_by),
+            "INSERT INTO prompt_history (prompt_text, changed_at, changed_by, prompt_key) "
+            "VALUES (?, ?, ?, ?)",
+            (prompt_text, changed_at, changed_by, prompt_key),
         )
         await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Диалоги чата с Лешим (TLL-06)
+# ---------------------------------------------------------------------------
+
+async def create_dialog(user_id: int) -> int:
+    """Создаёт новый диалог, возвращает его id."""
+    now = int(__import__("time").time())
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO dialogs (user_id, created_at, updated_at) VALUES (?, ?, ?)",
+            (user_id, now, now),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_dialogs(user_id: int) -> list[dict]:
+    """Возвращает список диалогов пользователя, отсортированных по updated_at DESC.
+
+    Каждый dict: {id, title, created_at, updated_at}.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, title, created_at, updated_at FROM dialogs "
+            "WHERE user_id = ? ORDER BY updated_at DESC",
+            (user_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def get_dialog(dialog_id: int) -> dict | None:
+    """Возвращает метаданные одного диалога или None."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, user_id, title, created_at, updated_at FROM dialogs WHERE id = ?",
+            (dialog_id,),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+
+async def delete_dialog(dialog_id: int) -> None:
+    """Удаляет диалог и все его сообщения (CASCADE)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA foreign_keys=ON")
+        await db.execute("DELETE FROM dialogs WHERE id = ?", (dialog_id,))
+        await db.commit()
+
+
+async def delete_all_dialogs(user_id: int) -> None:
+    """Удаляет все диалоги пользователя."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA foreign_keys=ON")
+        await db.execute("DELETE FROM dialogs WHERE user_id = ?", (user_id,))
+        await db.commit()
+
+
+async def update_dialog_timestamp(dialog_id: int) -> None:
+    """Обновляет updated_at на текущее время."""
+    now = int(__import__("time").time())
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE dialogs SET updated_at = ? WHERE id = ?",
+            (now, dialog_id),
+        )
+        await db.commit()
+
+
+async def update_dialog_title(dialog_id: int, title: str) -> None:
+    """Устанавливает заголовок диалога."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE dialogs SET title = ? WHERE id = ?",
+            (title, dialog_id),
+        )
+        await db.commit()
+
+
+async def add_dialog_message(dialog_id: int, role: str, content: str) -> int:
+    """Добавляет сообщение в диалог, возвращает id сообщения.
+
+    role: 'user', 'assistant', 'system', 'tool'.
+    """
+    now = int(__import__("time").time())
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO dialog_messages (dialog_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+            (dialog_id, role, content, now),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_dialog_messages(
+    dialog_id: int,
+    limit: int | None = None,
+) -> list[dict]:
+    """Возвращает сообщения диалога, отсортированные по id ASC.
+
+    Если limit задан — возвращает последние N сообщений (role IN ('user', 'assistant')).
+    Каждый dict: {id, role, content, created_at}.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if limit is None:
+            cursor = await db.execute(
+                "SELECT id, role, content, created_at FROM dialog_messages "
+                "WHERE dialog_id = ? ORDER BY id ASC",
+                (dialog_id,),
+            )
+        else:
+            # Берём последние N (user+assistant), затем возвращаем в хронологическом порядке
+            cursor = await db.execute(
+                "SELECT id, role, content, created_at FROM ("
+                "  SELECT id, role, content, created_at FROM dialog_messages "
+                "  WHERE dialog_id = ? AND role IN ('user', 'assistant') "
+                "  ORDER BY id DESC LIMIT ?"
+                ") ORDER BY id ASC",
+                (dialog_id, limit),
+            )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def get_all_dialog_messages(dialog_id: int) -> list[dict]:
+    """Возвращает ВСЕ сообщения диалога (для экспорта), отсортированные по id ASC.
+
+    Каждый dict: {id, role, content, created_at}.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, role, content, created_at FROM dialog_messages "
+            "WHERE dialog_id = ? ORDER BY id ASC",
+            (dialog_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
 
 
 async def get_stats() -> dict:
