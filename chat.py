@@ -86,8 +86,9 @@ def execute_web_search(query: str, max_results: int = 5) -> str:
     Синхронная функция — вызывать из async-кода через asyncio.to_thread().
     """
     try:
-        from duckduckgo_search import DDGS
-        results = DDGS().text(query, max_results=max_results)
+        from ddgs import DDGS
+        with DDGS() as ddgs:
+            results = ddgs.text(query, max_results=max_results)
         if not results:
             return "Поиск не дал результатов."
         formatted = []
