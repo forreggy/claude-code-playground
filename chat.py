@@ -13,6 +13,8 @@ import asyncio
 import json
 import logging
 
+from datetime import datetime
+
 from openai import AsyncOpenAI
 
 import config
@@ -130,7 +132,8 @@ async def chat_with_leshy(dialog_id: int, user_message: str) -> str:
 
     # 3. Собираем messages для API
     system_prompt = await get_chat_prompt()
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    current_date = datetime.now().strftime("%d.%m.%Y")
+    messages: list[dict] = [{"role": "system", "content": f"Сегодня {current_date}.\n\n{system_prompt}"}]
     for msg in recent:
         messages.append({"role": msg["role"], "content": msg["content"]})
 
