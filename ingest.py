@@ -10,6 +10,7 @@ import hashlib
 import logging
 
 from aiogram import Router
+from aiogram import F
 from aiogram.types import Message
 
 import config
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-@router.message()
+@router.message(F.chat.type.in_({"group", "supergroup"}))
 async def handle_message(message: Message) -> None:
     """Принять текстовое сообщение и сохранить в базу данных."""
     if message.chat.id != config.ALLOWED_CHAT_ID:
