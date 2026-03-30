@@ -17,6 +17,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 import config
 import database
+import dialog_handlers
 import ingest
 import worker
 from web_app import create_web_app
@@ -32,6 +33,7 @@ async def main() -> None:
     bot = Bot(token=config.BOT_TOKEN)
     dp = Dispatcher()
     dp.include_router(ingest.router)
+    dp.include_router(dialog_handlers.router)
 
     hour, minute = map(int, config.SUMMARY_TIME.split(":"))
 
