@@ -71,6 +71,10 @@ def create_web_app() -> web.Application:
     app.router.add_post("/admin/prompt", handle_admin_prompt_save)
     app.router.add_post("/admin/prompt/reset", handle_admin_prompt_reset)
     app.router.add_get("/admin/prompt/history", handle_admin_prompt_history)
+    app.router.add_get("/admin/chat/dialogs", handle_chat_dialogs_list)
+    app.router.add_post("/admin/chat/dialogs", handle_chat_dialog_create)
+    app.router.add_get("/admin/chat/dialogs/{dialog_id}/messages", handle_chat_messages_list)
+    app.router.add_post("/admin/chat/dialogs/{dialog_id}/messages", handle_chat_message_send)
     app.router.add_static(
         "/static", path=str(_BASE_DIR / "static"), name="static",
     )
@@ -226,5 +230,75 @@ async def handle_admin_prompt_history(request: web.Request) -> web.Response:
     ]
     return web.Response(
         text=json.dumps(history, ensure_ascii=False),
+        content_type="application/json",
+    )
+
+
+# ── Чат с Лешим ──────────────────────────────────────────────────────────────
+
+async def _require_own_dialog(dialog_id: int, user_id: int) -> dict:
+    """Вернуть диалог или поднять HTTPForbidden если не найден / не принадлежит пользователю."""
+    dialog = await database.get_dialog(dialog_id)
+    if dialog is None or dialog["user_id"] != user_id:
+        raise web.HTTPForbidden(text="Диалог не найден")
+    return dialog
+
+
+async def handle_chat_dialogs_list(request: web.Request) -> web.Response:
+    """Вернуть список диалогов текущего пользователя."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+    user_id = int(user["id"])
+    dialogs = await database.get_dialogs(user_id)
+    data = [{"id": d["id"], "created_at": d["created_at"], "updated_at": d["updated_at"]} for d in dialogs]
+    return web.Response(text=json.dumps(data, ensure_ascii=False), content_type="application/json")
+
+
+async def handle_chat_dialog_create(request: web.Request) -> web.Response:
+    """Создать новый диалог для текущего пользователя."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+    user_id = int(user["id"])
+    dialog_id = await database.create_dialog(user_id)
+    return web.Response(
+        text=json.dumps({"dialog_id": dialog_id}, ensure_ascii=False),
+        content_type="application/json",
+    )
+
+
+async def handle_chat_messages_list(request: web.Request) -> web.Response:
+    """Вернуть историю сообщений диалога (только user и assistant)."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+    user_id = int(user["id"])
+    dialog_id = int(request.match_info["dialog_id"])
+    await _require_own_dialog(dialog_id, user_id)
+    all_msgs = await database.get_all_dialog_messages(dialog_id)
+    msgs = [
+        {"role": m["role"], "content": m["content"], "created_at": m["created_at"]}
+        for m in all_msgs
+        if m["role"] in ("user", "assistant")
+    ]
+    return web.Response(text=json.dumps(msgs, ensure_ascii=False), content_type="application/json")
+
+
+async def handle_chat_message_send(request: web.Request) -> web.Response:
+    """Отправить сообщение в диалог, получить ответ Лешего."""
+    user = request.get("user")
+    if not user:
+        raise web.HTTPForbidden(text="Доступ запрещён")
+    user_id = int(user["id"])
+    dialog_id = int(request.match_info["dialog_id"])
+    await _require_own_dialog(dialog_id, user_id)
+    body = await request.json()
+    message = body.get("message", "").strip()
+    if not message:
+        raise web.HTTPBadRequest(text="message не может быть пустым")
+    reply = await chat.chat_with_leshy(dialog_id, message)
+    return web.Response(
+        text=json.dumps({"reply": reply}, ensure_ascii=False),
         content_type="application/json",
     )
