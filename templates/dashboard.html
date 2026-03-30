@@ -17,6 +17,16 @@
         <!-- Карточка 3: Редактор промпта (полная ширина) -->
         <div class="dashboard-card prompt-card">
             <h3>Редактор промпта</h3>
+            <style>
+            .prompt-tabs { display:flex; gap:4px; margin-bottom:10px; }
+            .prompt-tab { background:#2a3a2a; color:#a0b8a0; border:1px solid #3a5a3a; border-radius:4px 4px 0 0; padding:6px 16px; cursor:pointer; font-size:0.9rem; transition:background .15s; }
+            .prompt-tab.active { background:#3a5a3a; color:#e0f0e0; border-bottom-color:#3a5a3a; }
+            .prompt-tab:hover:not(.active) { background:#2f4a2f; }
+            </style>
+            <div class="prompt-tabs">
+                <button class="prompt-tab active" onclick="switchTab('system_prompt')">Промпт сводок</button>
+                <button class="prompt-tab" onclick="switchTab('chat_system_prompt')">Промпт чата</button>
+            </div>
             <textarea id="prompt-textarea" rows="15" spellcheck="false" placeholder="Загрузка промпта..."></textarea>
             <div class="prompt-actions">
                 <button id="save-prompt-btn" onclick="savePrompt()">Сохранить</button>
@@ -35,6 +45,7 @@
 (function () {
     var historyData = [];
     var historyVisible = false;
+    var currentPromptKey = 'system_prompt';
 
     function formatDate(ts) {
         return new Date(ts * 1000).toLocaleString('ru-RU', {
@@ -100,8 +111,8 @@
         }
     };
 
-    function loadPrompt() {
-        fetch('/admin/prompt')
+    function loadPrompt(key) {
+        fetch('/admin/prompt?prompt_key=' + key)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 document.getElementById('prompt-textarea').value = data.current_prompt;
@@ -113,6 +124,17 @@
             });
     }
 
+    window.switchTab = function (key) {
+        currentPromptKey = key;
+        document.querySelectorAll('.prompt-tab').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('onclick').indexOf("'" + key + "'") !== -1);
+        });
+        historyData = [];
+        historyVisible = false;
+        document.getElementById('history-list').style.display = 'none';
+        loadPrompt(key);
+    };
+
     window.savePrompt = function () {
         var text = document.getElementById('prompt-textarea').value.trim();
         if (!text) return;
@@ -121,7 +143,7 @@
         fetch('/admin/prompt', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({prompt_text: text})
+            body: JSON.stringify({prompt_text: text, prompt_key: currentPromptKey})
         })
             .then(function (r) { return r.json(); })
             .then(function () {
@@ -130,7 +152,7 @@
                     btn.textContent = 'Сохранить';
                     btn.disabled = false;
                 }, 2000);
-                loadPrompt();
+                loadPrompt(currentPromptKey);
             })
             .catch(function () {
                 btn.textContent = 'Ошибка';
@@ -145,12 +167,16 @@
         if (!confirm('Вернуть промпт по умолчанию?')) return;
         var btn = document.getElementById('reset-prompt-btn');
         btn.disabled = true;
-        fetch('/admin/prompt/reset', {method: 'POST'})
+        fetch('/admin/prompt/reset', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt_key: currentPromptKey})
+        })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 document.getElementById('prompt-textarea').value = data.prompt;
                 btn.disabled = false;
-                loadPrompt();
+                loadPrompt(currentPromptKey);
             })
             .catch(function () {
                 btn.disabled = false;
@@ -165,6 +191,6 @@
     };
 
     loadStats();
-    loadPrompt();
+    loadPrompt(currentPromptKey);
 })();
 </script>
