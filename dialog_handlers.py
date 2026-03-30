@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+from datetime import datetime
 
 from aiogram import F, Router
+from aiogram.filters import Command
 from aiogram.types import Message
 
 import config
@@ -12,6 +14,76 @@ from chat import chat_with_leshy
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+
+@router.message(Command("new"), F.chat.type == "private")
+async def cmd_new(message: Message) -> None:
+    """Создать новый диалог, предыдущий остаётся в истории."""
+    if message.from_user.id not in config.DIALOG_ALLOWED_IDS:
+        return
+    await database.create_dialog(message.from_user.id)
+    await message.answer("Новый диалог начат.")
+
+
+@router.message(Command("dialogs"), F.chat.type == "private")
+async def cmd_dialogs(message: Message) -> None:
+    """Показать список всех диалогов пользователя."""
+    user_id: int = message.from_user.id
+    if user_id not in config.DIALOG_ALLOWED_IDS:
+        return
+    dialogs = await database.get_dialogs(user_id)
+    if not dialogs:
+        await message.answer("Диалогов пока нет.")
+        return
+    lines = []
+    for i, d in enumerate(dialogs, 1):
+        date_str = datetime.fromtimestamp(d["created_at"]).strftime("%d.%m.%Y")
+        msgs = await database.get_dialog_messages(d["id"])
+        lines.append(f"{i}. {date_str} — {len(msgs)} сообщений")
+    await message.answer("\n".join(lines))
+
+
+@router.message(Command("export"), F.chat.type == "private")
+async def cmd_export(message: Message) -> None:
+    """Выгрузить текущий диалог текстом в формате [роль] текст."""
+    user_id: int = message.from_user.id
+    if user_id not in config.DIALOG_ALLOWED_IDS:
+        return
+    dialogs = await database.get_dialogs(user_id)
+    if not dialogs:
+        await message.answer("Нет активного диалога.")
+        return
+    msgs = await database.get_all_dialog_messages(dialogs[0]["id"])
+    lines = [f"[{m['role']}] {m['content']}" for m in msgs]
+    await message.answer("\n".join(lines) if lines else "(пустой диалог)")
+
+
+@router.message(Command("delete"), F.chat.type == "private")
+async def cmd_delete(message: Message) -> None:
+    """Удалить текущий диалог (последний по updated_at)."""
+    user_id: int = message.from_user.id
+    if user_id not in config.DIALOG_ALLOWED_IDS:
+        return
+    dialogs = await database.get_dialogs(user_id)
+    if not dialogs:
+        await message.answer("Нет активного диалога.")
+        return
+    await database.delete_dialog(dialogs[0]["id"])
+    await message.answer("Диалог удалён.")
+
+
+@router.message(Command("deleteall"), F.chat.type == "private")
+async def cmd_deleteall(message: Message) -> None:
+    """Удалить все диалоги пользователя."""
+    user_id: int = message.from_user.id
+    if user_id not in config.DIALOG_ALLOWED_IDS:
+        return
+    dialogs = await database.get_dialogs(user_id)
+    if not dialogs:
+        await message.answer("Диалогов нет.")
+        return
+    await database.delete_all_dialogs(user_id)
+    await message.answer("Все диалоги удалены.")
 
 
 @router.message(F.chat.type == "private", F.text)
