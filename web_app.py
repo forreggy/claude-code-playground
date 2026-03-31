@@ -79,6 +79,10 @@ def create_web_app() -> web.Application:
     app.router.add_get("/miniapp/", miniapp_index)
     app.router.add_post("/miniapp/auth", miniapp_auth)
     app.router.add_get("/miniapp/feed", miniapp_feed)
+    app.router.add_get("/miniapp/chat/dialogs", miniapp_chat_dialogs)
+    app.router.add_post("/miniapp/chat/dialogs", miniapp_chat_create_dialog)
+    app.router.add_get("/miniapp/chat/dialogs/{dialog_id}/messages", miniapp_chat_messages)
+    app.router.add_post("/miniapp/chat/dialogs/{dialog_id}/messages", miniapp_chat_send)
     app.router.add_static(
         "/static", path=str(_BASE_DIR / "static"), name="static",
     )
@@ -373,3 +377,53 @@ async def miniapp_feed(request: web.Request) -> web.Response:
             "image_url": image_url,
         })
     return web.json_response({"summaries": summaries})
+
+async def _require_miniapp_dialog_user(request: web.Request):
+    user = await _get_miniapp_user(request)
+    if user is None:
+        return None, web.json_response({"error": "unauthorized"}, status=401)
+    if not user.get("is_dialog_allowed"):
+        return None, web.json_response({"error": "forbidden"}, status=403)
+    return user, None
+
+async def miniapp_chat_dialogs(request: web.Request) -> web.Response:
+    user, err = await _require_miniapp_dialog_user(request)
+    if err:
+        return err
+    dialogs = await database.get_dialogs(user["id"])
+    data = [{"id": d["id"], "created_at": d["created_at"], "updated_at": d["updated_at"]} for d in dialogs]
+    return web.Response(text=json.dumps(data, ensure_ascii=False), content_type="application/json")
+
+async def miniapp_chat_create_dialog(request: web.Request) -> web.Response:
+    user, err = await _require_miniapp_dialog_user(request)
+    if err:
+        return err
+    dialog_id = await database.create_dialog(user["id"])
+    return web.Response(text=json.dumps({"dialog_id": dialog_id}, ensure_ascii=False), content_type="application/json")
+
+async def miniapp_chat_messages(request: web.Request) -> web.Response:
+    user, err = await _require_miniapp_dialog_user(request)
+    if err:
+        return err
+    dialog_id = int(request.match_info["dialog_id"])
+    await _require_own_dialog(dialog_id, user["id"])
+    all_msgs = await database.get_all_dialog_messages(dialog_id)
+    msgs = [
+        {"role": m["role"], "content": m["content"], "created_at": m["created_at"]}
+        for m in all_msgs
+        if m["role"] in ("user", "assistant")
+    ]
+    return web.Response(text=json.dumps(msgs, ensure_ascii=False), content_type="application/json")
+
+async def miniapp_chat_send(request: web.Request) -> web.Response:
+    user, err = await _require_miniapp_dialog_user(request)
+    if err:
+        return err
+    dialog_id = int(request.match_info["dialog_id"])
+    await _require_own_dialog(dialog_id, user["id"])
+    body = await request.json()
+    message = body.get("message", "").strip()
+    if not message:
+        raise web.HTTPBadRequest(text="message не может быть пустым")
+    reply = await chat.chat_with_leshy(dialog_id, message)
+    return web.Response(text=json.dumps({"reply": reply}, ensure_ascii=False), content_type="application/json")
