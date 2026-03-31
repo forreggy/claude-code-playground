@@ -109,6 +109,104 @@
       padding: 2rem;
       color: var(--hint);
     }
+
+    /* Чат */
+    .chat-tab {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .chat-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .chat-controls select {
+      flex: 1;
+      background: var(--secondary-bg);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 0.85rem;
+    }
+    .chat-controls button {
+      background: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(0,0,0,0.15);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .chat-placeholder {
+      margin: auto;
+      color: var(--hint);
+      text-align: center;
+    }
+    .chat-msg {
+      max-width: 82%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .chat-msg.user {
+      align-self: flex-end;
+      background: var(--button-bg);
+      color: var(--button-text);
+    }
+    .chat-msg.assistant {
+      align-self: flex-start;
+      background: var(--secondary-bg);
+      color: var(--text);
+    }
+    .chat-msg-meta {
+      font-size: 0.72rem;
+      opacity: 0.5;
+      margin-top: 4px;
+    }
+    .chat-input-area {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    .chat-input-area textarea {
+      flex: 1;
+      background: var(--secondary-bg);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      resize: none;
+      font-family: inherit;
+    }
+    .chat-input-area button {
+      background: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      align-self: flex-end;
+    }
   </style>
 </head>
 <body>
@@ -129,8 +227,18 @@
       <div id="feed-list"></div>
     </div>
 
-    <div id="tab-chat" class="tab-content" style="display:none">
-      <p style="text-align:center;padding:2rem;color:var(--hint)">Чат — скоро</p>
+    <div id="tab-chat" class="tab-content chat-tab" style="display:none">
+      <div class="chat-controls">
+        <select id="chat-dialog-select"></select>
+        <button id="chat-new-btn">＋</button>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <p class="chat-placeholder">Загрузка…</p>
+      </div>
+      <div class="chat-input-area">
+        <textarea id="chat-input" placeholder="Напиши Лешему…" rows="2"></textarea>
+        <button id="chat-send-btn">→</button>
+      </div>
     </div>
 
     <div id="tab-admin" class="tab-content" style="display:none">
@@ -181,6 +289,7 @@
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-' + tab).style.display = '';
         btn.classList.add('active');
+        if (tab === 'chat') { window._chatTabActivate && window._chatTabActivate(); }
       });
     });
   }
@@ -222,6 +331,167 @@
       showError('Нет связи с сервером');
     }
   });
+
+  (function() {
+    var currentDialogId = null;
+    var chatInitialized = false;
+
+    function fmtDate(ts) {
+      return new Date(ts * 1000).toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function scrollChat() {
+      var el = document.getElementById('chat-messages');
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function renderMessages(msgs) {
+      var el = document.getElementById('chat-messages');
+      if (!msgs.length) {
+        el.innerHTML = '<p class="chat-placeholder">Диалог пуст. Напиши что-нибудь.</p>';
+        return;
+      }
+      el.innerHTML = msgs.map(function(m) {
+        var cls = m.role === 'user' ? 'user' : 'assistant';
+        var name = m.role === 'user' ? 'Ты' : 'Леший';
+        var body = m.role === 'assistant' ? m.content : escapeHtml(m.content);
+        return '<div class="chat-msg ' + cls + '">' + body +
+          '<div class="chat-msg-meta">' + name + '</div></div>';
+      }).join('');
+      scrollChat();
+    }
+
+    function loadMessages(dialogId) {
+      fetch('/miniapp/chat/dialogs/' + dialogId + '/messages')
+        .then(function(r) { return r.json(); })
+        .then(renderMessages)
+        .catch(function() {
+          document.getElementById('chat-messages').innerHTML =
+            '<p class="chat-placeholder">Не удалось загрузить сообщения</p>';
+        });
+    }
+
+    function loadDialogs() {
+      fetch('/miniapp/chat/dialogs')
+        .then(function(r) { return r.json(); })
+        .then(function(dialogs) {
+          if (!dialogs.length) {
+            return fetch('/miniapp/chat/dialogs', {method: 'POST'})
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                currentDialogId = data.dialog_id;
+                var now = Math.floor(Date.now() / 1000);
+                var sel = document.getElementById('chat-dialog-select');
+                var opt = document.createElement('option');
+                opt.value = currentDialogId;
+                opt.textContent = 'Диалог от ' + fmtDate(now);
+                sel.appendChild(opt);
+                document.getElementById('chat-messages').innerHTML =
+                  '<p class="chat-placeholder">Диалог пуст. Напиши что-нибудь.</p>';
+              });
+          }
+          var sel = document.getElementById('chat-dialog-select');
+          sel.innerHTML = dialogs.map(function(d) {
+            return '<option value="' + d.id + '">Диалог от ' + fmtDate(d.created_at) + '</option>';
+          }).join('');
+          currentDialogId = dialogs[0].id;
+          sel.value = currentDialogId;
+          loadMessages(currentDialogId);
+        })
+        .catch(function() {
+          document.getElementById('chat-messages').innerHTML =
+            '<p class="chat-placeholder">Не удалось загрузить диалоги</p>';
+        });
+    }
+
+    window._chatTabActivate = function() {
+      if (!chatInitialized) {
+        chatInitialized = true;
+        loadDialogs();
+      }
+    };
+
+    document.getElementById('chat-dialog-select').addEventListener('change', function() {
+      currentDialogId = parseInt(this.value);
+      loadMessages(currentDialogId);
+    });
+
+    document.getElementById('chat-new-btn').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      fetch('/miniapp/chat/dialogs', {method: 'POST'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          currentDialogId = data.dialog_id;
+          var now = Math.floor(Date.now() / 1000);
+          var sel = document.getElementById('chat-dialog-select');
+          var opt = document.createElement('option');
+          opt.value = currentDialogId;
+          opt.textContent = 'Диалог от ' + fmtDate(now);
+          sel.insertBefore(opt, sel.firstChild);
+          sel.value = currentDialogId;
+          document.getElementById('chat-messages').innerHTML =
+            '<p class="chat-placeholder">Диалог пуст. Напиши что-нибудь.</p>';
+          btn.disabled = false;
+        })
+        .catch(function() { btn.disabled = false; });
+    });
+
+    function sendMessage() {
+      var input = document.getElementById('chat-input');
+      var text = input.value.trim();
+      if (!text || !currentDialogId) return;
+
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+
+      var sendBtn = document.getElementById('chat-send-btn');
+      input.disabled = true;
+      sendBtn.disabled = true;
+
+      var msgsEl = document.getElementById('chat-messages');
+      var userEl = document.createElement('div');
+      userEl.className = 'chat-msg user';
+      userEl.innerHTML = escapeHtml(text) + '<div class="chat-msg-meta">Ты</div>';
+      msgsEl.appendChild(userEl);
+
+      var thinkEl = document.createElement('div');
+      thinkEl.className = 'chat-msg assistant';
+      thinkEl.innerHTML = '<em>Леший думает…</em>';
+      msgsEl.appendChild(thinkEl);
+      scrollChat();
+      input.value = '';
+
+      fetch('/miniapp/chat/dialogs/' + currentDialogId + '/messages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: text})
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          thinkEl.innerHTML = data.reply + '<div class="chat-msg-meta">Леший</div>';
+          scrollChat();
+        })
+        .catch(function() {
+          thinkEl.innerHTML = '<em>Ошибка. Попробуй ещё раз.</em>';
+        })
+        .finally(function() {
+          input.disabled = false;
+          sendBtn.disabled = false;
+          input.focus();
+        });
+    }
+
+    document.getElementById('chat-send-btn').addEventListener('click', sendMessage);
+    document.getElementById('chat-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+  })();
 </script>
 
 </body>

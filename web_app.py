@@ -320,6 +320,21 @@ async def _get_miniapp_user(request: web.Request) -> dict | None:
     return session.get("miniapp_user")
 
 
+async def _require_miniapp_dialog_user(
+    request: web.Request,
+) -> tuple[dict, None] | tuple[None, web.Response]:
+    """Проверить авторизацию и право на диалог.
+
+    Возвращает (user, None) при успехе или (None, error_response) при отказе.
+    """
+    user = await _get_miniapp_user(request)
+    if user is None:
+        return None, web.json_response({"error": "unauthorized"}, status=401)
+    if not user.get("is_dialog_allowed"):
+        return None, web.json_response({"error": "forbidden"}, status=403)
+    return user, None
+
+
 async def miniapp_index(request: web.Request) -> web.Response:
     """GET /miniapp/ — отдать шелл Telegram Mini App."""
     return aiohttp_jinja2.render_template("miniapp.html", request, {})
@@ -387,21 +402,26 @@ async def _require_miniapp_dialog_user(request: web.Request):
     return user, None
 
 async def miniapp_chat_dialogs(request: web.Request) -> web.Response:
+
     user, err = await _require_miniapp_dialog_user(request)
     if err:
         return err
     dialogs = await database.get_dialogs(user["id"])
     data = [{"id": d["id"], "created_at": d["created_at"], "updated_at": d["updated_at"]} for d in dialogs]
-    return web.Response(text=json.dumps(data, ensure_ascii=False), content_type="application/json")
+    return web.json_response(data)
+
 
 async def miniapp_chat_create_dialog(request: web.Request) -> web.Response:
+    """POST /miniapp/chat/dialogs — создать новый диалог."""
     user, err = await _require_miniapp_dialog_user(request)
     if err:
         return err
     dialog_id = await database.create_dialog(user["id"])
-    return web.Response(text=json.dumps({"dialog_id": dialog_id}, ensure_ascii=False), content_type="application/json")
+    return web.json_response({"dialog_id": dialog_id})
+
 
 async def miniapp_chat_messages(request: web.Request) -> web.Response:
+    """GET /miniapp/chat/dialogs/{dialog_id}/messages — история сообщений диалога."""
     user, err = await _require_miniapp_dialog_user(request)
     if err:
         return err
@@ -413,9 +433,11 @@ async def miniapp_chat_messages(request: web.Request) -> web.Response:
         for m in all_msgs
         if m["role"] in ("user", "assistant")
     ]
-    return web.Response(text=json.dumps(msgs, ensure_ascii=False), content_type="application/json")
+    return web.json_response(msgs)
+
 
 async def miniapp_chat_send(request: web.Request) -> web.Response:
+    """POST /miniapp/chat/dialogs/{dialog_id}/messages — отправить сообщение Лешему."""
     user, err = await _require_miniapp_dialog_user(request)
     if err:
         return err
@@ -426,4 +448,4 @@ async def miniapp_chat_send(request: web.Request) -> web.Response:
     if not message:
         raise web.HTTPBadRequest(text="message не может быть пустым")
     reply = await chat.chat_with_leshy(dialog_id, message)
-    return web.Response(text=json.dumps({"reply": reply}, ensure_ascii=False), content_type="application/json")
+    return web.json_response({"reply": reply})
