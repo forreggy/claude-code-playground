@@ -206,6 +206,27 @@ async def get_summaries_for_feed(limit: int = 30, offset: int = 0) -> list[dict]
         ]
 
 
+async def get_all_summaries() -> list[dict]:
+    """Вернуть все сводки в обратном хронологическом порядке для Mini App."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, date, summary_text, image_path, created_at "
+            "FROM summaries ORDER BY date DESC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": row["id"],
+                "date": row["date"],
+                "summary_text": row["summary_text"],
+                "image_path": row["image_path"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+
 async def delete_messages_older_than(ts: int) -> None:
     """Удалить из таблицы messages все записи с timestamp < ts."""
     async with aiosqlite.connect(DB_PATH) as db:

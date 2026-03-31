@@ -10,13 +10,14 @@
 import datetime
 import json
 import logging
+import os
 import pathlib
 import time
 
 import aiohttp_jinja2
 import jinja2
 from aiohttp import web
-from aiohttp_session import setup as setup_session
+from aiohttp_session import get_session, setup as setup_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography.fernet import Fernet
 
@@ -75,6 +76,9 @@ def create_web_app() -> web.Application:
     app.router.add_post("/admin/chat/dialogs", handle_chat_dialog_create)
     app.router.add_get("/admin/chat/dialogs/{dialog_id}/messages", handle_chat_messages_list)
     app.router.add_post("/admin/chat/dialogs/{dialog_id}/messages", handle_chat_message_send)
+    app.router.add_get("/miniapp/", miniapp_index)
+    app.router.add_post("/miniapp/auth", miniapp_auth)
+    app.router.add_get("/miniapp/feed", miniapp_feed)
     app.router.add_static(
         "/static", path=str(_BASE_DIR / "static"), name="static",
     )
@@ -302,3 +306,70 @@ async def handle_chat_message_send(request: web.Request) -> web.Response:
         text=json.dumps({"reply": reply}, ensure_ascii=False),
         content_type="application/json",
     )
+
+
+# ── Telegram Mini App ─────────────────────────────────────────────────────────
+
+async def _get_miniapp_user(request: web.Request) -> dict | None:
+    """Вернуть miniapp_user из сессии или None."""
+    session = await get_session(request)
+    return session.get("miniapp_user")
+
+
+async def miniapp_index(request: web.Request) -> web.Response:
+    """GET /miniapp/ — отдать шелл Telegram Mini App."""
+    return aiohttp_jinja2.render_template("miniapp.html", request, {})
+
+
+async def miniapp_auth(request: web.Request) -> web.Response:
+    """POST /miniapp/auth — авторизовать пользователя Mini App через initData."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid json"}, status=400)
+
+    init_data = body.get("initData", "")
+    result = auth.validate_mini_app_init_data(init_data, config.BOT_TOKEN)
+    if result is None:
+        return web.json_response({"error": "invalid initData"}, status=401)
+
+    user = result.get("user", {})
+    if not isinstance(user, dict):
+        return web.json_response({"error": "invalid initData"}, status=401)
+
+    user_id = user.get("id")
+    if not user_id:
+        return web.json_response({"error": "invalid initData"}, status=401)
+
+    is_admin = int(user_id) in config.ADMIN_IDS
+    is_dialog_allowed = int(user_id) in config.DIALOG_ALLOWED_IDS
+
+    miniapp_user = {
+        "id": int(user_id),
+        "first_name": user.get("first_name", ""),
+        "username": user.get("username", ""),
+        "is_admin": is_admin,
+        "is_dialog_allowed": is_dialog_allowed,
+    }
+    session = await get_session(request)
+    session["miniapp_user"] = miniapp_user
+    return web.json_response({"ok": True, "user": miniapp_user})
+
+
+async def miniapp_feed(request: web.Request) -> web.Response:
+    """GET /miniapp/feed — вернуть ленту сводок в JSON для Mini App."""
+    miniapp_user = await _get_miniapp_user(request)
+    if miniapp_user is None:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    rows = await database.get_all_summaries()
+    summaries = []
+    for row in rows:
+        image_url = f"/{row['image_path']}" if row.get("image_path") else None
+        summaries.append({
+            "id": row["id"],
+            "date": row["date"],
+            "summary_text": row["summary_text"],
+            "image_url": image_url,
+        })
+    return web.json_response({"summaries": summaries})
