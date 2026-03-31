@@ -207,6 +207,105 @@
       cursor: pointer;
       align-self: flex-end;
     }
+
+    /* Пульт */
+    .admin-card {
+      background: var(--secondary-bg);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .admin-card h3 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+    }
+    .prompt-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .prompt-tab-btn {
+      padding: 6px 14px;
+      background: var(--bg);
+      color: var(--hint);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .prompt-tab-btn.active {
+      background: var(--button-bg);
+      color: var(--button-text);
+      border-color: var(--button-bg);
+    }
+    #prompt-editor {
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .prompt-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .prompt-actions button {
+      padding: 7px 16px;
+      background: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    #tab-admin details summary {
+      cursor: pointer;
+      color: var(--hint);
+      font-size: 0.85rem;
+      padding: 8px 0 4px;
+    }
+    .history-entry {
+      padding: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .history-meta {
+      color: var(--hint);
+      margin-bottom: 2px;
+    }
+    .history-preview {
+      color: var(--text);
+      opacity: 0.8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #stats-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-item {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--hint);
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -242,7 +341,26 @@
     </div>
 
     <div id="tab-admin" class="tab-content" style="display:none">
-      <p style="text-align:center;padding:2rem;color:var(--hint)">Пульт — скоро</p>
+      <div class="admin-card">
+        <h3>Статистика</h3>
+        <div id="stats-content">Загрузка…</div>
+      </div>
+      <div class="admin-card">
+        <h3>Промпт</h3>
+        <div class="prompt-tabs">
+          <button class="prompt-tab-btn active" data-key="system_prompt">Сводки</button>
+          <button class="prompt-tab-btn" data-key="chat_system_prompt">Чат</button>
+        </div>
+        <textarea id="prompt-editor" rows="10"></textarea>
+        <div class="prompt-actions">
+          <button id="prompt-save-btn">Сохранить</button>
+          <button id="prompt-reset-btn">Сбросить</button>
+        </div>
+        <details>
+          <summary>История версий</summary>
+          <div id="prompt-history"></div>
+        </details>
+      </div>
     </div>
 
   </div>
@@ -290,6 +408,7 @@
         document.getElementById('tab-' + tab).style.display = '';
         btn.classList.add('active');
         if (tab === 'chat') { window._chatTabActivate && window._chatTabActivate(); }
+        if (tab === 'admin') { window._adminTabActivate && window._adminTabActivate(); }
       });
     });
   }
@@ -491,6 +610,155 @@
     document.getElementById('chat-input').addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     });
+  })();
+
+  (function() {
+    var adminInitialized = false;
+    var currentPromptKey = 'system_prompt';
+    var promptsCache = null;
+
+    function fmtDateTime(ts) {
+      return new Date(ts * 1000).toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function fmtDate(d) {
+      if (!d) return '—';
+      var months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+      var p = d.split('-');
+      return parseInt(p[2]) + ' ' + months[parseInt(p[1]) - 1] + ' ' + p[0];
+    }
+
+    function loadStats() {
+      fetch('/miniapp/admin/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var el = document.getElementById('stats-content');
+          el.innerHTML =
+            '<div class="stat-item"><div class="stat-label">Сводок</div>' +
+            '<div class="stat-value">' + data.total_summaries + '</div></div>' +
+            '<div class="stat-item"><div class="stat-label">Последняя</div>' +
+            '<div class="stat-value">' + fmtDate(data.last_summary_date) + '</div></div>' +
+            '<div class="stat-item"><div class="stat-label">С начала</div>' +
+            '<div class="stat-value">' + fmtDate(data.first_summary_date) + '</div></div>' +
+            '<div class="stat-item"><div class="stat-label">В буфере</div>' +
+            '<div class="stat-value">' + data.messages_in_buffer + '</div></div>';
+        })
+        .catch(function() {
+          document.getElementById('stats-content').textContent = 'Не удалось загрузить';
+        });
+    }
+
+    function applyPromptCache() {
+      if (!promptsCache) return;
+      var text = currentPromptKey === 'system_prompt'
+        ? promptsCache.summary_prompt
+        : promptsCache.chat_prompt;
+      document.getElementById('prompt-editor').value = text;
+      loadHistory(currentPromptKey);
+    }
+
+    function loadPrompts() {
+      fetch('/miniapp/admin/prompt')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          promptsCache = data;
+          applyPromptCache();
+        })
+        .catch(function() {
+          document.getElementById('prompt-editor').placeholder = 'Не удалось загрузить промпт';
+        });
+    }
+
+    function loadHistory(key) {
+      fetch('/miniapp/admin/prompt/history?key=' + key)
+        .then(function(r) { return r.json(); })
+        .then(function(rows) {
+          var el = document.getElementById('prompt-history');
+          if (!rows.length) {
+            el.innerHTML = '<p style="color:var(--hint);font-size:0.82rem;padding:4px 0">История пуста</p>';
+            return;
+          }
+          el.innerHTML = rows.map(function(r, idx) {
+            var meta = fmtDateTime(r.changed_at) + (r.changed_by ? ' · ' + r.changed_by : '');
+            var preview = String(r.preview).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return '<div class="history-entry" data-idx="' + idx + '">' +
+              '<div class="history-meta">' + meta + '</div>' +
+              '<div class="history-preview">' + preview + '…</div></div>';
+          }).join('');
+          el.querySelectorAll('.history-entry').forEach(function(entry) {
+            var idx = parseInt(entry.dataset.idx);
+            entry.addEventListener('click', function() {
+              document.getElementById('prompt-editor').value = rows[idx].prompt_text;
+            });
+          });
+        })
+        .catch(function() {});
+    }
+
+    document.querySelectorAll('.prompt-tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        currentPromptKey = this.dataset.key;
+        document.querySelectorAll('.prompt-tab-btn').forEach(function(b) {
+          b.classList.toggle('active', b === btn);
+        });
+        applyPromptCache();
+      });
+    });
+
+    document.getElementById('prompt-save-btn').addEventListener('click', function() {
+      var btn = this;
+      var text = document.getElementById('prompt-editor').value.trim();
+      if (!text) return;
+      btn.disabled = true;
+      fetch('/miniapp/admin/prompt', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt_key: currentPromptKey, content: text})
+      })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (currentPromptKey === 'system_prompt') {
+            promptsCache.summary_prompt = text;
+          } else {
+            promptsCache.chat_prompt = text;
+          }
+          btn.textContent = 'Сохранено ✓';
+          setTimeout(function() { btn.textContent = 'Сохранить'; btn.disabled = false; }, 2000);
+          loadHistory(currentPromptKey);
+        })
+        .catch(function() {
+          btn.textContent = 'Ошибка';
+          setTimeout(function() { btn.textContent = 'Сохранить'; btn.disabled = false; }, 2000);
+        });
+    });
+
+    document.getElementById('prompt-reset-btn').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      fetch('/miniapp/admin/prompt/reset', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt_key: currentPromptKey})
+      })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          promptsCache = null;
+          loadPrompts();
+          btn.disabled = false;
+        })
+        .catch(function() { btn.disabled = false; });
+    });
+
+    window._adminTabActivate = function() {
+      if (!adminInitialized) {
+        adminInitialized = true;
+        loadStats();
+        loadPrompts();
+      }
+    };
   })();
 </script>
 

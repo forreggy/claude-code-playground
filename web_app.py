@@ -83,6 +83,11 @@ def create_web_app() -> web.Application:
     app.router.add_post("/miniapp/chat/dialogs", miniapp_chat_create_dialog)
     app.router.add_get("/miniapp/chat/dialogs/{dialog_id}/messages", miniapp_chat_messages)
     app.router.add_post("/miniapp/chat/dialogs/{dialog_id}/messages", miniapp_chat_send)
+    app.router.add_get("/miniapp/admin/stats", miniapp_admin_stats)
+    app.router.add_get("/miniapp/admin/prompt", miniapp_admin_prompt_get)
+    app.router.add_post("/miniapp/admin/prompt", miniapp_admin_prompt_save)
+    app.router.add_post("/miniapp/admin/prompt/reset", miniapp_admin_prompt_reset)
+    app.router.add_get("/miniapp/admin/prompt/history", miniapp_admin_prompt_history)
     app.router.add_static(
         "/static", path=str(_BASE_DIR / "static"), name="static",
     )
@@ -449,3 +454,102 @@ async def miniapp_chat_send(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="message не может быть пустым")
     reply = await chat.chat_with_leshy(dialog_id, message)
     return web.json_response({"reply": reply})
+
+
+# ── Mini App: Пульт (admin) ───────────────────────────────────────────────────
+
+async def _require_miniapp_admin(
+    request: web.Request,
+) -> tuple[dict, None] | tuple[None, web.Response]:
+    """Проверить авторизацию и права администратора в Mini App.
+
+    Возвращает (user, None) при успехе или (None, error_response) при отказе.
+    """
+    user = await _get_miniapp_user(request)
+    if user is None:
+        return None, web.json_response({"error": "unauthorized"}, status=401)
+    if not user.get("is_admin"):
+        return None, web.json_response({"error": "forbidden"}, status=403)
+    return user, None
+
+
+async def miniapp_admin_stats(request: web.Request) -> web.Response:
+    """GET /miniapp/admin/stats — статистика для вкладки «Пульт»."""
+    _, err = await _require_miniapp_admin(request)
+    if err:
+        return err
+    stats = await database.get_stats()
+    return web.json_response(stats)
+
+
+async def miniapp_admin_prompt_get(request: web.Request) -> web.Response:
+    """GET /miniapp/admin/prompt — оба текущих промпта (сводок и чата)."""
+    _, err = await _require_miniapp_admin(request)
+    if err:
+        return err
+    summary_stored = await database.get_setting("system_prompt")
+    chat_stored = await database.get_setting("chat_system_prompt")
+    return web.json_response({
+        "summary_prompt": summary_stored if summary_stored is not None else _get_default_prompt("system_prompt"),
+        "chat_prompt": chat_stored if chat_stored is not None else _get_default_prompt("chat_system_prompt"),
+    })
+
+
+async def miniapp_admin_prompt_save(request: web.Request) -> web.Response:
+    """POST /miniapp/admin/prompt — сохранить промпт."""
+    user, err = await _require_miniapp_admin(request)
+    if err:
+        return err
+    body = await request.json()
+    prompt_key = (body.get("prompt_key", "system_prompt") or "system_prompt").strip()
+    new_prompt = body.get("content", "").strip()
+    if not new_prompt:
+        raise web.HTTPBadRequest(text="content не может быть пустым")
+    now = int(time.time())
+    changed_by = _get_changed_by(user)
+    stored = await database.get_setting(prompt_key)
+    old_prompt = stored if stored is not None else _get_default_prompt(prompt_key)
+    await database.save_prompt_history(old_prompt, now, changed_by, prompt_key=prompt_key)
+    await database.set_setting(prompt_key, new_prompt, now)
+    logger.info("Промпт %s обновлён через Mini App пользователем %s", prompt_key, changed_by)
+    return web.json_response({"ok": True})
+
+
+async def miniapp_admin_prompt_reset(request: web.Request) -> web.Response:
+    """POST /miniapp/admin/prompt/reset — сбросить промпт к дефолту."""
+    user, err = await _require_miniapp_admin(request)
+    if err:
+        return err
+    try:
+        body = await request.json()
+        prompt_key = (body.get("prompt_key", "system_prompt") or "system_prompt").strip()
+    except Exception:
+        prompt_key = "system_prompt"
+    now = int(time.time())
+    changed_by = _get_changed_by(user)
+    stored = await database.get_setting(prompt_key)
+    if stored is not None:
+        await database.save_prompt_history(stored, now, changed_by, prompt_key=prompt_key)
+        await database.delete_setting(prompt_key)
+        logger.info("Промпт %s сброшен через Mini App пользователем %s", prompt_key, changed_by)
+    return web.json_response({"ok": True})
+
+
+async def miniapp_admin_prompt_history(request: web.Request) -> web.Response:
+    """GET /miniapp/admin/prompt/history?key=... — история версий промпта."""
+    _, err = await _require_miniapp_admin(request)
+    if err:
+        return err
+    prompt_key = request.rel_url.query.get("key", "system_prompt")
+    rows = await database.get_prompt_history(limit=20, prompt_key=prompt_key)
+    history = [
+        {
+            "id": r["id"],
+            "changed_at": r["changed_at"],
+            "changed_by": r["changed_by"],
+            "preview": r["prompt_text"][:80],
+            "prompt_text": r["prompt_text"],
+        }
+        for r in rows
+    ]
+    return web.json_response(history)
