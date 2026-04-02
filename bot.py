@@ -55,7 +55,7 @@ async def main() -> None:
     app = create_web_app()
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", config.WEB_PORT)
+    site = web.TCPSite(runner, "127.0.0.1", config.WEB_PORT)
     await site.start()
     logger.info("Веб-лента запущена на порту %d", config.WEB_PORT)
 
