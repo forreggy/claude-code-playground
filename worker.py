@@ -31,7 +31,7 @@ import llm
 logger = logging.getLogger(__name__)
 
 _QUIET_DAY_TEXT = "Сегодня в чате было тихо. Даже Леший не вышел."
-_MIN_MESSAGES = 10
+_MIN_MESSAGES = 5
 _RETRY_INTERVAL = 60
 _IMAGE_RETRY_INTERVAL = 30
 _IMAGE_MAX_ATTEMPTS = 3

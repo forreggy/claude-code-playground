@@ -9,6 +9,8 @@
 """
 
 import logging
+import logging.handlers
+
 import re
 
 import openai
@@ -17,6 +19,18 @@ import config
 import database
 
 logger = logging.getLogger(__name__)
+
+_raw_logger = logging.getLogger("llm_raw")
+_raw_logger.setLevel(logging.DEBUG)
+_raw_logger.propagate = False  # не дублировать в основной журнал
+_raw_handler = logging.handlers.RotatingFileHandler(
+    "logs/llm_raw.log",
+    maxBytes=5 * 1024 * 1024,  # 5 МБ
+    backupCount=7,              # 7 ротаций = ~35 МБ максимум
+    encoding="utf-8",
+)
+_raw_handler.setFormatter(logging.Formatter("%(asctime)s\n%(message)s\n" + "-" * 80))
+_raw_logger.addHandler(_raw_handler)
 
 DEFAULT_SYSTEM_PROMPT = (
     "КРИТИЧЕСКИ ВАЖНО — ФОРМАТ ОТВЕТА: "
@@ -122,6 +136,7 @@ async def generate_summary(messages: list[dict]) -> str:
     )
 
     logger.info("Сводка успешно сгенерирована")
+    _raw_logger.debug(response.output_text)
     return response.output_text
 
 
