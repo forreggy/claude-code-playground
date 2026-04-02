@@ -390,11 +390,10 @@
       const imgHtml = s.image_url
         ? `<img class="summary-img" src="${s.image_url}" onerror="this.style.display='none'" loading="lazy">`
         : '';
-      const text = s.summary_text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return `<div class="summary-card">
         <div class="summary-date">${s.date}</div>
         ${imgHtml}
-        <div class="summary-text">${text}</div>
+        <div class="summary-text">${s.summary_text}</div>
       </div>`;
     }).join('');
   }
