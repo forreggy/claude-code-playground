@@ -1,0 +1,151 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# SQL-запросы и схема БД
+============================================================
+
+
+database.py:26:     """Создать таблицы и индексы, настроить PRAGMA.
+database.py:31:         await db.execute("PRAGMA journal_mode=WAL")
+database.py:32:         await db.execute("PRAGMA foreign_keys=ON")
+database.py:34:         await db.execute("""
+database.py:35:             CREATE TABLE IF NOT EXISTS messages (
+database.py:44:         await db.execute("""
+database.py:45:             CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+database.py:49:         await db.execute("""
+database.py:50:             CREATE TABLE IF NOT EXISTS summaries (
+database.py:58:         await db.execute("""
+database.py:59:             CREATE TABLE IF NOT EXISTS settings (
+database.py:66:         await db.execute("""
+database.py:67:             CREATE TABLE IF NOT EXISTS prompt_history (
+database.py:75:         await db.execute("""
+database.py:76:             CREATE TABLE IF NOT EXISTS dialogs (
+database.py:85:         await db.execute("""
+database.py:86:             CREATE INDEX IF NOT EXISTS idx_dialogs_user ON dialogs(user_id)
+database.py:89:         await db.execute("""
+database.py:90:             CREATE TABLE IF NOT EXISTS dialog_messages (
+database.py:99:         await db.execute("""
+database.py:100:             CREATE INDEX IF NOT EXISTS idx_dm_dialog ON dialog_messages(dialog_id)
+database.py:106:         cursor = await db.execute("PRAGMA table_info(summaries)")
+database.py:109:             await db.execute("ALTER TABLE summaries ADD COLUMN image_path TEXT")
+database.py:114:         cursor = await db.execute("PRAGMA table_info(prompt_history)")
+database.py:117:             await db.execute(
+database.py:134:         await db.execute(
+database.py:135:             "INSERT INTO messages (user_id, username, text, timestamp) VALUES (?, ?, ?, ?)",
+database.py:149:         cursor = await db.execute(
+database.py:150:             "SELECT user_id, username, text, timestamp FROM messages WHERE timestamp >= ?",
+database.py:180:         await db.execute(
+database.py:181:             "INSERT INTO summaries (date, summary_text, created_at, image_path) VALUES (?, ?, ?, ?)",
+database.py:192:         cursor = await db.execute(
+database.py:193:             "SELECT date, summary_text, image_path, created_at "
+database.py:213:         cursor = await db.execute(
+database.py:214:             "SELECT id, date, summary_text, image_path, created_at "
+database.py:233:         cursor = await db.execute(
+database.py:234:             "DELETE FROM messages WHERE timestamp < ?",
+database.py:244:         cursor = await db.execute("SELECT value FROM settings WHERE key = ?", (key,))
+database.py:252:         await db.execute(
+database.py:262:         await db.execute("DELETE FROM settings WHERE key = ?", (key,))
+database.py:277:         cursor = await db.execute(
+database.py:278:             "SELECT id, prompt_text, changed_at, changed_by FROM prompt_history "
+database.py:298:         await db.execute(
+database.py:299:             "INSERT INTO prompt_history (prompt_text, changed_at, changed_by, prompt_key) "
+database.py:314:         cursor = await db.execute(
+database.py:315:             "INSERT INTO dialogs (user_id, created_at, updated_at) VALUES (?, ?, ?)",
+database.py:329:         cursor = await db.execute(
+database.py:330:             "SELECT id, title, created_at, updated_at FROM dialogs "
+database.py:342:         cursor = await db.execute(
+database.py:343:             "SELECT id, user_id, title, created_at, updated_at FROM dialogs WHERE id = ?",
+database.py:353:         await db.execute("PRAGMA foreign_keys=ON")
+database.py:354:         await db.execute("DELETE FROM dialogs WHERE id = ?", (dialog_id,))
+database.py:361:         await db.execute("PRAGMA foreign_keys=ON")
+database.py:362:         await db.execute("DELETE FROM dialogs WHERE user_id = ?", (user_id,))
+database.py:370:         await db.execute(
+database.py:371:             "UPDATE dialogs SET updated_at = ? WHERE id = ?",
+database.py:380:         await db.execute(
+database.py:381:             "UPDATE dialogs SET title = ? WHERE id = ?",
+database.py:394:         cursor = await db.execute(
+database.py:395:             "INSERT INTO dialog_messages (dialog_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+database.py:414:             cursor = await db.execute(
+database.py:415:                 "SELECT id, role, content, created_at FROM dialog_messages "
+database.py:421:             cursor = await db.execute(
+database.py:422:                 "SELECT id, role, content, created_at FROM ("
+database.py:423:                 "  SELECT id, role, content, created_at FROM dialog_messages "
+database.py:440:         cursor = await db.execute(
+database.py:441:             "SELECT id, role, content, created_at FROM dialog_messages "
+database.py:461:         cursor = await db.execute(
+database.py:462:             "SELECT COUNT(*), MAX(date), MIN(date) FROM summaries"
+database.py:469:         cursor = await db.execute("SELECT COUNT(*) FROM messages")
+
+database.py:26-29 [многострочный SQL]:
+  Создать таблицы и индексы, настроить PRAGMA.
+  
+      Безопасно вызывать при каждом старте: использует IF NOT EXISTS.
+
+
+database.py:34-42 [многострочный SQL]:
+  CREATE TABLE IF NOT EXISTS messages (
+                  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id   TEXT    NOT NULL,
+                  username  TEXT,
+                  text      TEXT    NOT NULL,
+                  timestamp INTEGER NOT NULL
+              )
+
+
+database.py:44-47 [многострочный SQL]:
+  CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+              ON messages(timestamp)
+
+
+database.py:49-56 [многострочный SQL]:
+  CREATE TABLE IF NOT EXISTS summaries (
+                  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                  date         TEXT    NOT NULL UNIQUE,
+                  summary_text TEXT    NOT NULL,
+                  created_at   INTEGER NOT NULL
+              )
+
+
+database.py:58-64 [многострочный SQL]:
+  CREATE TABLE IF NOT EXISTS settings (
+                  key        TEXT    PRIMARY KEY,
+                  value      TEXT    NOT NULL,
+                  updated_at INTEGER NOT NULL
+              )
+
+
+database.py:66-73 [многострочный SQL]:
+  CREATE TABLE IF NOT EXISTS prompt_history (
+                  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                  prompt_text TEXT    NOT NULL,
+                  changed_at  INTEGER NOT NULL,
+                  changed_by  TEXT
+              )
+
+
+database.py:75-83 [многострочный SQL]:
+  CREATE TABLE IF NOT EXISTS dialogs (
+                  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id    INTEGER NOT NULL,
+                  title      TEXT,
+                  created_at INTEGER NOT NULL,
+                  updated_at INTEGER NOT NULL
+              )
+
+
+database.py:85-87 [многострочный SQL]:
+  CREATE INDEX IF NOT EXISTS idx_dialogs_user ON dialogs(user_id)
+
+
+database.py:89-97 [многострочный SQL]:
+  CREATE TABLE IF NOT EXISTS dialog_messages (
+                  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                  dialog_id  INTEGER NOT NULL REFERENCES dialogs(id) ON DELETE CASCADE,
+                  role       TEXT    NOT NULL,
+                  content    TEXT    NOT NULL,
+                  created_at INTEGER NOT NULL
+              )
+
+
+database.py:99-101 [многострочный SQL]:
+  CREATE INDEX IF NOT EXISTS idx_dm_dialog ON dialog_messages(dialog_id)
+
+test_worker.py:43:     rows = conn.execute("SELECT date, summary_text FROM summaries").fetchall()

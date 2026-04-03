@@ -1,0 +1,128 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# Переменные окружения и обращения к конфигурации
+============================================================
+
+
+auth.py:57:         audience=str(config.BOT_ID),
+auth.py:89:     secret_key = hashlib.sha256(config.BOT_TOKEN.encode()).digest()
+auth.py:135:         "bot_username": config.BOT_USERNAME,
+auth.py:162:     if user_id not in config.ADMIN_IDS:
+bot.py:33:     bot = Bot(token=config.BOT_TOKEN)
+bot.py:38:     hour, minute = map(int, config.SUMMARY_TIME.split(":"))
+bot.py:40:     scheduler = AsyncIOScheduler(timezone=config.TIMEZONE)
+bot.py:43:         CronTrigger(hour=hour, minute=minute, timezone=config.TIMEZONE),
+bot.py:50:         config.SUMMARY_TIME,
+bot.py:51:         config.TIMEZONE,
+bot.py:58:     site = web.TCPSite(runner, "127.0.0.1", config.WEB_PORT)
+bot.py:60:     logger.info("Веб-лента запущена на порту %d", config.WEB_PORT)
+chat.py:25:     base_url=config.CHAT_API_BASE,
+chat.py:26:     api_key=config.CHAT_API_KEY,
+chat.py:142:         model=config.CHAT_MODEL,
+chat.py:183:             model=config.CHAT_MODEL,
+config.py:17:     value = os.environ.get(name, "").strip()
+config.py:25:     raw = os.environ.get("ADMIN_IDS", "").strip()
+config.py:33: SUMMARY_CHAT_ID: int = int(os.environ.get("SUMMARY_CHAT_ID", "0").strip() or "0") or ALLOWED_CHAT_ID
+config.py:46: IMAGE_MODEL: str = os.environ.get("IMAGE_MODEL", "gpt-image-1-mini").strip() or "gpt-image-1-mini"
+config.py:47: IMAGE_QUALITY: str = os.environ.get("IMAGE_QUALITY", "low").strip() or "low"
+config.py:48: IMAGE_SIZE: str = os.environ.get("IMAGE_SIZE", "1024x1024").strip() or "1024x1024"
+config.py:51: WEB_PORT: int = int(os.environ.get("WEB_PORT", "8080").strip() or "8080")
+config.py:61:     raw = os.environ.get("DIALOG_ALLOWED_IDS", "").strip()
+dialog_handlers.py:58:     if message.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:71:     if message.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:81:     if user_id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:99:     if user_id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:114:     if user_id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:128:     if user_id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:141:     if message.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:151:     if user_id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:167:     if message.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:184:     if callback.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:201:     if callback.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:216:     if callback.from_user.id not in config.DIALOG_ALLOWED_IDS:
+dialog_handlers.py:242:     if user_id not in config.DIALOG_ALLOWED_IDS:
+imagegen.py:20: _client = openai.AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+imagegen.py:100:         logger.info("Генерируем картинку МЕМ ДНЯ (модель: %s)", config.IMAGE_MODEL)
+imagegen.py:103:             model=config.IMAGE_MODEL,
+imagegen.py:106:             size=config.IMAGE_SIZE,
+imagegen.py:107:             quality=config.IMAGE_QUALITY
+ingest.py:27:     if message.chat.id != config.ALLOWED_CHAT_ID:
+llm.py:102: _client = openai.AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+llm.py:132:         model=config.OPENAI_MODEL,
+test_worker.py:36:     bot = Bot(token=config.BOT_TOKEN)
+web_app.py:55:     fernet_key = Fernet(config.SESSION_SECRET_KEY.encode())
+web_app.py:107:         "bot_id": config.BOT_ID,
+web_app.py:356:     result = auth.validate_mini_app_init_data(init_data, config.BOT_TOKEN)
+web_app.py:368:     is_admin = int(user_id) in config.ADMIN_IDS
+web_app.py:369:     is_dialog_allowed = int(user_id) in config.DIALOG_ALLOWED_IDS
+worker.py:60:         await bot.send_message(config.SUMMARY_CHAT_ID, _QUIET_DAY_TEXT)
+worker.py:92:                         config.SUMMARY_CHAT_ID,
+worker.py:115:                 config.SUMMARY_CHAT_ID, summary_text, parse_mode="HTML"
+
+
+============================================================
+# Содержимое .env.example
+============================================================
+
+# Токен Telegram-бота, полученный от @BotFather
+BOT_TOKEN=
+
+# ID группового чата, который бот слушает (отрицательное число, например -1001234567890)
+# Узнать можно через @userinfobot или переслав сообщение из чата боту @RawDataBot
+ALLOWED_CHAT_ID=
+
+# Telegram ID администраторов через запятую, например: 123456789,987654321
+ADMIN_IDS=
+
+# Секретный ключ OpenAI API (начинается с sk-)
+# Получить: https://platform.openai.com/api-keys
+OPENAI_API_KEY=
+
+# Модель OpenAI для генерации сводок, например gpt-5.4-mini
+OPENAI_MODEL=gpt-5.4-mini
+
+# Время ежедневной отправки сводки в формате HH:MM, например 22:00
+SUMMARY_TIME=22:00
+
+# Временная зона для планировщика, например Europe/Riga или Europe/Moscow
+# Список зон: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+TIMEZONE=Europe/Riga
+
+# --- Авторизация (admin dashboard) ---
+
+# 32-байтный ключ для шифрования сессионных кук (Fernet)
+# Сгенерировать: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+SESSION_SECRET_KEY=
+
+# @username бота без символа @ (например: leshiy_v_taige_bot)
+BOT_USERNAME=
+
+# --- Настройки генерации картинок МЕМ ДНЯ (опциональные, есть defaults) ---
+
+# Модель для генерации картинок (по умолчанию gpt-image-1-mini)
+IMAGE_MODEL=gpt-image-1-mini
+
+# Качество картинки: low / medium / high (по умолчанию low)
+IMAGE_QUALITY=low
+
+# Размер картинки: 1024x1024 / 1024x1536 / 1536x1024 (по умолчанию 1024x1024)
+IMAGE_SIZE=1024x1024
+
+# --- Настройки веб-ленты (опциональные, есть defaults) ---
+
+# Порт для публичной веб-ленты сводок (по умолчанию 8080)
+WEB_PORT=8080
+
+# --- Чат с Лешим (TLL-06) ---
+
+# Base URL провайдера для чата (OpenAI-совместимый API)
+CHAT_API_BASE=https://api.cerebras.ai/v1
+
+# API-ключ провайдера чата (Cerebras / OpenRouter / Groq)
+CHAT_API_KEY=
+
+# Имя модели у провайдера, например llama3.1-8b (Cerebras) или meta-llama/llama-3.1-8b-instruct (OpenRouter)
+CHAT_MODEL=qwen-3-235b-a22b-instruct-2507
+
+# Telegram user ID через запятую, кому разрешён диалог с Лешим (опционально, пустое = нет ограничений)
+DIALOG_ALLOWED_IDS=
+

@@ -1,0 +1,20 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# Telegram-хэндлеры (router.message, @router.*, и др.)
+============================================================
+
+
+dialog_handlers.py:55: @router.message(Command("start"), F.chat.type == "private")
+dialog_handlers.py:68: @router.message(Command("new"), F.chat.type == "private")
+dialog_handlers.py:77: @router.message(Command("dialogs"), F.chat.type == "private")
+dialog_handlers.py:95: @router.message(Command("export"), F.chat.type == "private")
+dialog_handlers.py:110: @router.message(Command("delete"), F.chat.type == "private")
+dialog_handlers.py:124: @router.message(Command("deleteall"), F.chat.type == "private")
+dialog_handlers.py:138: @router.message(F.chat.type == "private", F.text == "Новый")
+dialog_handlers.py:147: @router.message(F.chat.type == "private", F.text == "Диалоги")
+dialog_handlers.py:164: @router.message(F.chat.type == "private", F.text == "Помощь")
+dialog_handlers.py:180: @router.callback_query(F.data.startswith("dlg_export:"))
+dialog_handlers.py:197: @router.callback_query(F.data.startswith("dlg_delete:"))
+dialog_handlers.py:212: @router.callback_query(F.data.startswith("dlg_delete_yes:"))
+dialog_handlers.py:229: @router.callback_query(F.data.startswith("dlg_delete_no:"))
+dialog_handlers.py:237: @router.message(F.chat.type == "private", F.text)
+ingest.py:24: @router.message(F.chat.type.in_({"group", "supergroup"}))

@@ -1,0 +1,71 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# HTML-шаблоны (templates/)
+============================================================
+
+
+
+### templates/base.html  (1127 байт)
+
+Первые 5 строк:
+    1: <!DOCTYPE html>
+    2: <html lang="ru">
+    3: <head>
+    4:     <meta charset="UTF-8">
+    5:     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script> блоки:
+    27:     <script>
+
+
+### templates/dashboard.html  (17389 байт)
+
+Первые 5 строк:
+    1: <section class="dashboard">
+    2:     <h2 class="dashboard-title">Пульт Лешего</h2>
+    3:     <div class="dashboard-grid">
+    4: 
+    5:         <!-- Карточка 1: Чат с Лешим -->
+
+<script> блоки:
+    66: <script>
+
+
+### templates/login.html  (1641 байт)
+
+Первые 5 строк:
+    1: <!DOCTYPE html>
+    2: <html lang="ru">
+    3: <head>
+    4:     <meta charset="utf-8">
+    5:     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script> блоки:
+    47:         <script async src="https://telegram.org/js/telegram-widget.js?22"
+
+
+### templates/miniapp.html  (23803 байт)
+
+Первые 5 строк:
+    1: <!DOCTYPE html>
+    2: <html lang="ru">
+    3: <head>
+    4:   <meta charset="UTF-8">
+    5:   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<script> блоки:
+     8:   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+   369: <script>
+
+
+### templates/summaries.html  (617 байт)
+
+Первые 5 строк:
+    1: {% extends "base.html" %}
+    2: {% block content %}
+    3: {% if user %}
+    4:     {% include "dashboard.html" %}
+    5: {% endif %}
+
+<script> блоки:
+  (нет <script> блоков)
+

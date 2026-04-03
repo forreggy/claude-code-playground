@@ -1,0 +1,31 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# Дерево файлов репозитория
+============================================================
+
+
+.env.example
+.gitignore
+CLAUDE.md
+LICENSE
+README.md
+auth.py
+bot.py
+chat.py
+config.py
+database.py
+dialog_handlers.py
+imagegen.py
+ingest.py
+llm.py
+requirements.txt
+static/style.css
+taigabot.service
+templates/base.html
+templates/dashboard.html
+templates/login.html
+templates/miniapp.html
+templates/summaries.html
+test_llm.py
+test_worker.py
+web_app.py
+worker.py

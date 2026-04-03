@@ -1,0 +1,31 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# HTTP-эндпоинты (app.router.add_*)
+============================================================
+
+
+web_app.py:66:     app.router.add_get("/", handle_index)
+web_app.py:67:     app.router.add_get("/auth/login", auth.handle_login_page)
+web_app.py:68:     app.router.add_get("/auth/callback", auth.handle_auth_callback)
+web_app.py:69:     app.router.add_post("/auth/logout", auth.handle_logout)
+web_app.py:70:     app.router.add_get("/admin/stats", handle_admin_stats)
+web_app.py:71:     app.router.add_get("/admin/prompt", handle_admin_prompt)
+web_app.py:72:     app.router.add_post("/admin/prompt", handle_admin_prompt_save)
+web_app.py:73:     app.router.add_post("/admin/prompt/reset", handle_admin_prompt_reset)
+web_app.py:74:     app.router.add_get("/admin/prompt/history", handle_admin_prompt_history)
+web_app.py:75:     app.router.add_get("/admin/chat/dialogs", handle_chat_dialogs_list)
+web_app.py:76:     app.router.add_post("/admin/chat/dialogs", handle_chat_dialog_create)
+web_app.py:77:     app.router.add_get("/admin/chat/dialogs/{dialog_id}/messages", handle_chat_messages_list)
+web_app.py:78:     app.router.add_post("/admin/chat/dialogs/{dialog_id}/messages", handle_chat_message_send)
+web_app.py:79:     app.router.add_get("/miniapp/", miniapp_index)
+web_app.py:80:     app.router.add_post("/miniapp/auth", miniapp_auth)
+web_app.py:81:     app.router.add_get("/miniapp/feed", miniapp_feed)
+web_app.py:82:     app.router.add_get("/miniapp/chat/dialogs", miniapp_chat_dialogs)
+web_app.py:83:     app.router.add_post("/miniapp/chat/dialogs", miniapp_chat_create_dialog)
+web_app.py:84:     app.router.add_get("/miniapp/chat/dialogs/{dialog_id}/messages", miniapp_chat_messages)
+web_app.py:85:     app.router.add_post("/miniapp/chat/dialogs/{dialog_id}/messages", miniapp_chat_send)
+web_app.py:86:     app.router.add_get("/miniapp/admin/stats", miniapp_admin_stats)
+web_app.py:87:     app.router.add_get("/miniapp/admin/prompt", miniapp_admin_prompt_get)
+web_app.py:88:     app.router.add_post("/miniapp/admin/prompt", miniapp_admin_prompt_save)
+web_app.py:89:     app.router.add_post("/miniapp/admin/prompt/reset", miniapp_admin_prompt_reset)
+web_app.py:90:     app.router.add_get("/miniapp/admin/prompt/history", miniapp_admin_prompt_history)
+web_app.py:91:     app.router.add_static(

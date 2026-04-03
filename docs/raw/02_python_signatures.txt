@@ -1,0 +1,340 @@
+# Сгенерировано: 2026-04-03 05:19:17
+# Сигнатуры функций и классов Python
+============================================================
+
+
+
+### auth.py
+
+  async def _validate_jwt(id_token: str) -> dict[str, Any]:  [line 41]
+    """Валидировать JWT id_token от Telegram Login."""
+
+  def _validate_legacy_hash(data: dict[str, Any]) -> dict[str, Any]:  [line 68]
+    """Валидировать hash-based данные по протоколу Telegram Login Widget."""
+
+  @web.middleware
+  async def auth_middleware(request: web.Request, handler: Any) -> web.StreamResponse:  [line 116]
+    """Загрузить данные пользователя из сессии в request['user']."""
+
+  async def handle_login_page(request: web.Request) -> web.Response:  [line 132]
+    """GET /auth/login — страница с кнопкой Telegram Login Widget."""
+
+  async def handle_auth_callback(request: web.Request) -> web.Response:  [line 140]
+    """GET /auth/callback — Telegram редиректит сюда с данными в query params."""
+
+  async def handle_logout(request: web.Request) -> web.Response:  [line 181]
+    """POST /auth/logout — очистить сессию."""
+
+  def validate_mini_app_init_data(init_data_raw: str, bot_token: str) -> dict | None:  [line 188]
+    """Валидировать initData от Telegram Mini App."""
+
+
+### bot.py
+
+  async def main() -> None:  [line 29]
+    """Инициализировать бота, запустить web-сервер, scheduler и polling."""
+
+
+### chat.py
+
+  async def get_chat_prompt() -> str:  [line 78]
+    """Читает chat_system_prompt из settings, fallback на DEFAULT_CHAT_PROMPT."""
+
+  def execute_web_search(query: str, max_results: int=5) -> str:  [line 85]
+    """Выполняет поиск через DuckDuckGo, возвращает результаты как текст."""
+
+  async def chat_with_leshy(dialog_id: int, user_message: str) -> str:  [line 107]
+    """Основная функция чата с Лешим."""
+
+
+### config.py
+
+  def _require(name: str) -> str:  [line 15]
+    """Вернуть значение переменной окружения или выбросить ValueError."""
+
+  def _parse_admin_ids() -> frozenset[int]:  [line 23]
+    """Считать ADMIN_IDS из окружения, разбить по запятой, вернуть frozenset[int]."""
+
+  def _parse_dialog_allowed_ids() -> list[int]:  [line 59]
+    """Считать DIALOG_ALLOWED_IDS из окружения, вернуть список int (пустой если не задано)."""
+
+
+### database.py
+
+  async def init_db() -> None:  [line 25]
+    """Создать таблицы и индексы, настроить PRAGMA."""
+
+  async def save_message(user_id: str, username: str | None, text: str, timestamp: int) -> None:  [line 126]
+    """Сохранить входящее сообщение в таблицу messages."""
+
+  async def get_messages_since(since_ts: int) -> list[dict]:  [line 142]
+    """Вернуть все сообщения с timestamp >= since_ts."""
+
+  async def save_summary(date: str, summary_text: str, created_at: int, image_path: str | None=None) -> None:  [line 165]
+    """Сохранить готовую сводку в таблицу summaries."""
+
+  async def get_summaries_for_feed(limit: int=30, offset: int=0) -> list[dict]:  [line 188]
+    """Вернуть сводки в обратном хронологическом порядке для веб-ленты."""
+
+  async def get_all_summaries() -> list[dict]:  [line 209]
+    """Вернуть все сводки в обратном хронологическом порядке для Mini App."""
+
+  async def delete_messages_older_than(ts: int) -> None:  [line 230]
+    """Удалить из таблицы messages все записи с timestamp < ts."""
+
+  async def get_setting(key: str) -> str | None:  [line 241]
+    """Получить значение настройки по ключу. Возвращает None если ключ не существует."""
+
+  async def set_setting(key: str, value: str, updated_at: int) -> None:  [line 249]
+    """Установить значение настройки. INSERT OR REPLACE."""
+
+  async def delete_setting(key: str) -> None:  [line 259]
+    """Удалить настройку по ключу."""
+
+  async def get_prompt_history(limit: int=20, prompt_key: str='system_prompt') -> list[dict]:  [line 266]
+    """Вернуть историю промптов в обратном хронологическом порядке."""
+
+  async def save_prompt_history(prompt_text: str, changed_at: int, changed_by: str | None=None, prompt_key: str='system_prompt') -> None:  [line 286]
+    """Сохранить версию промпта в историю."""
+
+  async def create_dialog(user_id: int) -> int:  [line 310]
+    """Создаёт новый диалог, возвращает его id."""
+
+  async def get_dialogs(user_id: int) -> list[dict]:  [line 322]
+    """Возвращает список диалогов пользователя, отсортированных по updated_at DESC."""
+
+  async def get_dialog(dialog_id: int) -> dict | None:  [line 338]
+    """Возвращает метаданные одного диалога или None."""
+
+  async def delete_dialog(dialog_id: int) -> None:  [line 350]
+    """Удаляет диалог и все его сообщения (CASCADE)."""
+
+  async def delete_all_dialogs(user_id: int) -> None:  [line 358]
+    """Удаляет все диалоги пользователя."""
+
+  async def update_dialog_timestamp(dialog_id: int) -> None:  [line 366]
+    """Обновляет updated_at на текущее время."""
+
+  async def update_dialog_title(dialog_id: int, title: str) -> None:  [line 377]
+    """Устанавливает заголовок диалога."""
+
+  async def add_dialog_message(dialog_id: int, role: str, content: str) -> int:  [line 387]
+    """Добавляет сообщение в диалог, возвращает id сообщения."""
+
+  async def get_dialog_messages(dialog_id: int, limit: int | None=None) -> list[dict]:  [line 402]
+    """Возвращает сообщения диалога, отсортированные по id ASC."""
+
+  async def get_all_dialog_messages(dialog_id: int) -> list[dict]:  [line 433]
+    """Возвращает ВСЕ сообщения диалога (для экспорта), отсортированные по id ASC."""
+
+  async def get_stats() -> dict:  [line 449]
+    """Собрать статистику из существующих таблиц."""
+
+
+### dialog_handlers.py
+
+  def _main_keyboard() -> ReplyKeyboardMarkup:  [line 26]
+    """Постоянная ReplyKeyboard с тремя кнопками управления диалогами."""
+
+  def _dialog_keyboard(dialog_id: int) -> InlineKeyboardMarkup:  [line 39]
+    """Инлайн-кнопки для одного диалога: Экспорт и Удалить."""
+
+  def _confirm_keyboard(dialog_id: int) -> InlineKeyboardMarkup:  [line 47]
+    """Инлайн-кнопки подтверждения удаления диалога."""
+
+  @router.message(Command('start'), F.chat.type == 'private')
+  async def cmd_start(message: Message) -> None:  [line 56]
+    """Приветствие и выдача постоянной клавиатуры."""
+
+  @router.message(Command('new'), F.chat.type == 'private')
+  async def cmd_new(message: Message) -> None:  [line 69]
+    """Создать новый диалог, предыдущий остаётся в истории."""
+
+  @router.message(Command('dialogs'), F.chat.type == 'private')
+  async def cmd_dialogs(message: Message) -> None:  [line 78]
+    """Показать список всех диалогов пользователя."""
+
+  @router.message(Command('export'), F.chat.type == 'private')
+  async def cmd_export(message: Message) -> None:  [line 96]
+    """Выгрузить текущий диалог текстом в формате [роль] текст."""
+
+  @router.message(Command('delete'), F.chat.type == 'private')
+  async def cmd_delete(message: Message) -> None:  [line 111]
+    """Удалить текущий диалог (последний по updated_at)."""
+
+  @router.message(Command('deleteall'), F.chat.type == 'private')
+  async def cmd_deleteall(message: Message) -> None:  [line 125]
+    """Удалить все диалоги пользователя."""
+
+  @router.message(F.chat.type == 'private', F.text == 'Новый')
+  async def btn_new(message: Message) -> None:  [line 139]
+    """Кнопка «Новый»: создать новый диалог."""
+
+  @router.message(F.chat.type == 'private', F.text == 'Диалоги')
+  async def btn_dialogs(message: Message) -> None:  [line 148]
+    """Кнопка «Диалоги»: список диалогов с инлайн-кнопками управления."""
+
+  @router.message(F.chat.type == 'private', F.text == 'Помощь')
+  async def btn_help(message: Message) -> None:  [line 165]
+    """Кнопка «Помощь»: справка по командам."""
+
+  @router.callback_query(F.data.startswith('dlg_export:'))
+  async def cb_export(callback: CallbackQuery) -> None:  [line 181]
+    """Callback: экспорт диалога в текст."""
+
+  @router.callback_query(F.data.startswith('dlg_delete:'))
+  async def cb_delete(callback: CallbackQuery) -> None:  [line 198]
+    """Callback: запрос подтверждения удаления диалога."""
+
+  @router.callback_query(F.data.startswith('dlg_delete_yes:'))
+  async def cb_delete_yes(callback: CallbackQuery) -> None:  [line 213]
+    """Callback: подтверждение удаления — удалить диалог."""
+
+  @router.callback_query(F.data.startswith('dlg_delete_no:'))
+  async def cb_delete_no(callback: CallbackQuery) -> None:  [line 230]
+    """Callback: отмена удаления — восстановить кнопки Экспорт/Удалить."""
+
+  @router.message(F.chat.type == 'private', F.text)
+  async def handle_private_message(message: Message) -> None:  [line 238]
+    """Обработать входящее личное сообщение: найти/создать диалог, вызвать LLM, ответить."""
+
+  async def typing_loop() -> None:  [line 252]
+    """Повторять send_chat_action typing каждые 4 секунды до получения ответа."""
+
+
+### imagegen.py
+
+  def _overlay_caption(image_bytes: bytes, caption: str) -> io.BytesIO:  [line 28]
+    """Наложить текстовую подпись на полупрозрачную плашку внизу картинки."""
+
+  async def generate_meme_image(prompt: str, caption: str) -> io.BytesIO | None:  [line 93]
+    """Сгенерировать картинку по промпту и наложить подпись."""
+
+
+### ingest.py
+
+  @router.message(F.chat.type.in_({'group', 'supergroup'}))
+  async def handle_message(message: Message) -> None:  [line 25]
+    """Принять текстовое сообщение и сохранить в базу данных."""
+
+
+### llm.py
+
+  async def get_current_prompt() -> str:  [line 105]
+    """Получить текущий системный промпт."""
+
+  async def generate_summary(messages: list[dict]) -> str:  [line 115]
+    """Генерирует вечернюю сводку дня на основе сообщений из чата."""
+
+  def parse_summary_response(text: str) -> dict:  [line 143]
+    """Распарсить ответ LLM: извлечь image_prompt, image_caption и текст сводки."""
+
+
+### test_llm.py
+
+
+### test_worker.py
+
+  async def main():  [line 6]
+
+
+### web_app.py
+
+  def _format_date(date_str: str) -> str:  [line 41]
+    """Преобразовать YYYY-MM-DD в человекочитаемый формат: «24 марта 2026»."""
+
+  def create_web_app() -> web.Application:  [line 50]
+    """Создать и настроить aiohttp-приложение для веб-ленты."""
+
+  @aiohttp_jinja2.template('summaries.html')
+  async def handle_index(request: web.Request) -> dict:  [line 99]
+    """Обработчик главной страницы: отдать последние 30 сводок."""
+
+  def _get_default_prompt(prompt_key: str) -> str:  [line 111]
+    """Вернуть дефолтный промпт для заданного ключа."""
+
+  def _get_changed_by(user: dict) -> str:  [line 118]
+    """Сформировать строку changed_by из данных сессии авторизации."""
+
+  async def handle_admin_stats(request: web.Request) -> web.Response:  [line 126]
+    """Вернуть статистику для дашборда в JSON."""
+
+  async def handle_admin_prompt(request: web.Request) -> web.Response:  [line 138]
+    """Вернуть текущий промпт и историю версий в JSON."""
+
+  async def handle_admin_prompt_save(request: web.Request) -> web.Response:  [line 171]
+    """Сохранить новый промпт в settings и записать старый в историю."""
+
+  async def handle_admin_prompt_reset(request: web.Request) -> web.Response:  [line 200]
+    """Сбросить промпт к дефолту: удалить из settings, сохранить в историю."""
+
+  async def handle_admin_prompt_history(request: web.Request) -> web.Response:  [line 227]
+    """Вернуть историю версий промпта по ключу в JSON."""
+
+  async def _require_own_dialog(dialog_id: int, user_id: int) -> dict:  [line 252]
+    """Вернуть диалог или поднять HTTPForbidden если не найден / не принадлежит пользователю."""
+
+  async def handle_chat_dialogs_list(request: web.Request) -> web.Response:  [line 260]
+    """Вернуть список диалогов текущего пользователя."""
+
+  async def handle_chat_dialog_create(request: web.Request) -> web.Response:  [line 271]
+    """Создать новый диалог для текущего пользователя."""
+
+  async def handle_chat_messages_list(request: web.Request) -> web.Response:  [line 284]
+    """Вернуть историю сообщений диалога (только user и assistant)."""
+
+  async def handle_chat_message_send(request: web.Request) -> web.Response:  [line 301]
+    """Отправить сообщение в диалог, получить ответ Лешего."""
+
+  async def _get_miniapp_user(request: web.Request) -> dict | None:  [line 322]
+    """Вернуть miniapp_user из сессии или None."""
+
+  async def _require_miniapp_dialog_user(request: web.Request) -> tuple[dict, None] | tuple[None, web.Response]:  [line 328]
+    """Проверить авторизацию и право на диалог."""
+
+  async def miniapp_index(request: web.Request) -> web.Response:  [line 343]
+    """GET /miniapp/ — отдать шелл Telegram Mini App."""
+
+  async def miniapp_auth(request: web.Request) -> web.Response:  [line 348]
+    """POST /miniapp/auth — авторизовать пользователя Mini App через initData."""
+
+  async def miniapp_feed(request: web.Request) -> web.Response:  [line 383]
+    """GET /miniapp/feed — вернуть ленту сводок в JSON для Mini App."""
+
+  async def _require_miniapp_dialog_user(request: web.Request):  [line 401]
+
+  async def miniapp_chat_dialogs(request: web.Request) -> web.Response:  [line 409]
+
+  async def miniapp_chat_create_dialog(request: web.Request) -> web.Response:  [line 419]
+    """POST /miniapp/chat/dialogs — создать новый диалог."""
+
+  async def miniapp_chat_messages(request: web.Request) -> web.Response:  [line 428]
+    """GET /miniapp/chat/dialogs/{dialog_id}/messages — история сообщений диалога."""
+
+  async def miniapp_chat_send(request: web.Request) -> web.Response:  [line 444]
+    """POST /miniapp/chat/dialogs/{dialog_id}/messages — отправить сообщение Лешему."""
+
+  async def _require_miniapp_admin(request: web.Request) -> tuple[dict, None] | tuple[None, web.Response]:  [line 461]
+    """Проверить авторизацию и права администратора в Mini App."""
+
+  async def miniapp_admin_stats(request: web.Request) -> web.Response:  [line 476]
+    """GET /miniapp/admin/stats — статистика для вкладки «Пульт»."""
+
+  async def miniapp_admin_prompt_get(request: web.Request) -> web.Response:  [line 485]
+    """GET /miniapp/admin/prompt — оба текущих промпта (сводок и чата)."""
+
+  async def miniapp_admin_prompt_save(request: web.Request) -> web.Response:  [line 498]
+    """POST /miniapp/admin/prompt — сохранить промпт."""
+
+  async def miniapp_admin_prompt_reset(request: web.Request) -> web.Response:  [line 518]
+    """POST /miniapp/admin/prompt/reset — сбросить промпт к дефолту."""
+
+  async def miniapp_admin_prompt_history(request: web.Request) -> web.Response:  [line 538]
+    """GET /miniapp/admin/prompt/history?key=... — история версий промпта."""
+
+
+### worker.py
+
+  async def run_daily_summary(bot: Bot) -> None:  [line 42]
+    """Выполнить полный цикл генерации и отправки ежедневной сводки."""
+
