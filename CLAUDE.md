@@ -1,476 +1,139 @@
 # CLAUDE.md — TaigaBot Lite
 
-## Правила для агента (обязательные)
-1. ВЕТКА: если в задаче указана существующая ветка — переключись
-   на неё командой `git checkout имя-ветки`. НЕ создавай новую ветку.
-   Выполни `git branch -a` чтобы убедиться что ветка существует.
-2. ДЕЙСТВУЙ: выполняй задачу сразу, без вопросов и запросов
-   подтверждения. Если задача говорит «создай файл» — создавай.
-   Не спрашивай разрешение.
-3. ЭКОНОМЬ ТОКЕНЫ: не читай файлы проекта напрямую если задача
-   указывает конкретные источники данных. Читай только то, что
-   указано в задаче.
+## Правила для агента (ОБЯЗАТЕЛЬНЫЕ, нарушение недопустимо)
 
-## Что это за проект
+**ВЕТКА.** Если в задаче указана существующая ветка — выполни
+`git fetch origin && git checkout имя-ветки`. Если ветки нет —
+сообщи об этом. ЗАПРЕЩЕНО создавать новую ветку если задача
+этого явно не требует.
 
-**TaigaBot Lite** — Telegram-бот, который молча слушает один конкретный чат 24/7, собирает сообщения в локальную базу данных, а раз в сутки генерирует хулиганскую сводку дня через OpenAI API и публикует её обратно в чат: сначала картинку МЕМ ДНЯ (генерируется через Image API), затем текстовую сводку.
+**ДЕЙСТВУЙ.** Выполняй задачу немедленно. ЗАПРЕЩЕНО спрашивать
+разрешение на создание файлов, запуск команд или выполнение
+шагов, описанных в задаче. Задача = разрешение.
 
-Это учебная (облегчённая) версия боевого проекта TAIGA. Здесь нет Docker, нет PostgreSQL. Только чистая логика, минимум зависимостей, максимум понятности.
+**ЭКОНОМЬ ТОКЕНЫ.** Если задача указывает конкретные файлы-источники —
+читай только их. ЗАПРЕЩЕНО читать весь проект «для контекста».
 
-**Репозиторий:** https://github.com/forreggy/claude-code-playground  
-**Деплой:** Ubuntu VPS, systemd, Python venv  
-**Статус:** в разработке
+**ВЕРИФИЦИРУЙ.** После каждого шага изменения файла — проверяй
+результат через `grep` или `cat`. Покажи вывод. Если результат
+не совпадает с ожиданием — исправь до перехода к следующему шагу.
+
+**КОММИТЬ И ПУШЬ.** После завершения задачи — `git add`, `commit`,
+`push`. Без напоминаний.
+
+---
+
+## Проект
+
+**TaigaBot Lite** («Леший») — Telegram-бот, который мониторит
+групповой чат, генерирует ежедневные AI-сводки с мем-картинками,
+и предоставляет интерактивный чат с персонажем Леший.
+
+Четыре интерфейса: Telegram групповой чат, Telegram ЛС (личные
+сообщения с кнопками), веб-дашборд (taiga.ex-mari.com), Telegram
+Mini App.
+
+**Репозиторий:** https://github.com/forreggy/claude-code-playground
+**Деплой:** Ubuntu VPS, systemd, Python venv, nginx, Cloudflare
+**Документация:** `docs/inventory.md` — полный реестр проекта
 
 ---
 
 ## Стек
 
-- **Python 3.11+**
-- **aiogram 3.x** — Telegram Bot API (async)
-- **aiosqlite** — асинхронная работа с SQLite
-- **openai** — официальный клиент OpenAI API
-- **APScheduler** — планировщик для ежедневного запуска worker
-- **Pillow** — наложение текстовой подписи на сгенерированные картинки
-- **python-dotenv** — загрузка конфигурации из `.env`
-- **aiohttp.web** — веб-сервер (встроен в aiogram как зависимость)
-- **aiohttp-jinja2** — интеграция шаблонизатора Jinja2 с aiohttp
-- **Jinja2** — движок HTML-шаблонов
-- **aiohttp-session** — управление сессиями (EncryptedCookieStorage)
-- **PyJWT[crypto]** — валидация JWT от Telegram Login (RS256 через cryptography)
-- **duckduckgo-search** — веб-поиск для чата с Лешим
+- Python 3.11+, async/await
+- aiogram 3.x — Telegram Bot API
+- aiosqlite — SQLite (WAL mode)
+- openai SDK — Responses API (сводки, картинки), Chat Completions (чат)
+- APScheduler — ежедневные задачи
+- aiohttp + Jinja2 — веб-сервер и шаблоны
+- aiohttp-session (Fernet) — сессии
+- PyJWT[crypto] — Telegram Login
+- Pillow — наложение подписей на картинки
+- ddgs — DuckDuckGo поиск для чата
 
-Никаких ORM (SQLAlchemy и т.п.) — только чистый SQL через aiosqlite. Никакого Docker.
+Никаких ORM. Никакого Docker. Только чистый SQL через aiosqlite.
 
 ---
 
 ## Структура файлов
 
 ```
-claude-code-playground/
-├── CLAUDE.md               # этот файл — читай его первым
-├── README.md
-├── .env.example            # шаблон переменных окружения (без реальных ключей)
-├── .gitignore              # .env и taigabot.db в нём обязательно
-├── requirements.txt        # все зависимости с зафиксированными версиями
-│
-├── bot.py                  # точка входа: запуск aiogram polling + APScheduler + веб-сервер
-├── config.py               # загрузка и валидация переменных из .env
-├── database.py             # инициализация БД, все SQL-запросы (CRUD)
-├── ingest.py               # aiogram-хэндлеры: приём и сохранение сообщений
-├── worker.py               # ежедневная задача: генерация и отправка сводки
-├── llm.py                  # обёртка над OpenAI API + системный промпт + парсинг ответа
-├── imagegen.py             # генерация картинки МЕМ ДНЯ (Image API) + наложение подписи (Pillow)
-├── chat.py                 # модуль чата: агентный цикл с tool calling, веб-поиск (TLL-06)
-├── web_app.py              # aiohttp веб-приложение (публичная лента сводок)
-├── auth.py                 # авторизация: Telegram Login (JWT + legacy hash), middleware, сессии
-│
-├── templates/
-│   ├── base.html           # базовый layout (кнопка ВХОД/ВЫХОД, Telegram Login JS)
-│   ├── summaries.html      # лента сводок
-│   ├── dashboard.html      # скелет админ-дашборда (include, не extends)
-│   └── login.html          # промежуточная страница авторизации (Telegram Login Widget)
-├── static/
-│   ├── style.css           # стили
-│   └── memes/              # сгенерированные картинки (в .gitignore)
-│
-├── taigabot.service        # шаблон systemd unit-файла для деплоя на VPS
-└── deploy.md               # пошаговая инструкция по деплою на Ubuntu VPS
-```
-
-> **Примечание:** файл `taigabot.db` в репозитории отсутствует. Он создаётся автоматически при первом запуске бота через `database.init_db()` и прописан в `.gitignore`. То же самое касается файла `.env`.
-
----
-
-## База данных (SQLite, файл `taigabot.db`)
-
-### Таблица `messages` — входящие сообщения
-
-```sql
-CREATE TABLE IF NOT EXISTS messages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id     TEXT    NOT NULL,   -- анонимизированный: SHA256(real_uid)[:12]
-    username    TEXT,               -- @username или NULL, сохраняем для сводки
-    text        TEXT    NOT NULL,
-    timestamp   INTEGER NOT NULL    -- Unix timestamp (секунды)
-);
-
-CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
-```
-
-**Важно:** таблица `messages` — временное хранилище. Worker удаляет из неё все записи старше 48 часов сразу после успешной генерации сводки. Она никогда не вырастет больше нескольких тысяч строк.
-
-### Таблица `summaries` — архив готовых сводок
-
-```sql
-CREATE TABLE IF NOT EXISTS summaries (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    date         TEXT    NOT NULL UNIQUE,  -- формат YYYY-MM-DD
-    summary_text TEXT    NOT NULL,         -- полный текст сводки (все 5 блоков)
-    created_at   INTEGER NOT NULL,         -- Unix timestamp генерации
-    image_path   TEXT                      -- относительный путь к картинке МЕМ ДНЯ (nullable)
-);
-```
-
-**Важно:** после успешной генерации сводки `summary_text` сохраняется здесь навсегда. Это архив — не трогать, не чистить.
-
-### Таблица `settings` — настройки key-value
-
-```sql
-CREATE TABLE IF NOT EXISTS settings (
-    key        TEXT    PRIMARY KEY,
-    value      TEXT    NOT NULL,
-    updated_at INTEGER NOT NULL  -- Unix timestamp последнего обновления
-);
-```
-
-Хранит настройки бота. Текущий ключ: `system_prompt` — кастомный системный промпт Лешего. Если ключ отсутствует, `llm.get_current_prompt()` возвращает `DEFAULT_SYSTEM_PROMPT` из кода.
-
-### Таблица `prompt_history` — история версий промпта
-
-```sql
-CREATE TABLE IF NOT EXISTS prompt_history (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    prompt_text TEXT    NOT NULL,         -- полный текст версии промпта
-    changed_at  INTEGER NOT NULL,         -- Unix timestamp изменения
-    changed_by  TEXT,                     -- никнейм администратора (@username или first_name), NULL для программных записей
-    prompt_key  TEXT DEFAULT 'system_prompt'  -- тип промпта: system_prompt / chat_system_prompt
-);
-```
-
-Каждый раз при сохранении нового промпта или сбросе к дефолту — текущая версия добавляется в эту таблицу. Архив не удаляется.
-
-### Таблица `dialogs` — диалоги чата с Лешим (TLL-06)
-
-```sql
-CREATE TABLE IF NOT EXISTS dialogs (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL,   -- Telegram user ID
-    title      TEXT,               -- заголовок диалога (nullable, задаётся позднее)
-    created_at INTEGER NOT NULL,   -- Unix timestamp создания
-    updated_at INTEGER NOT NULL    -- Unix timestamp последнего сообщения
-);
-
-CREATE INDEX IF NOT EXISTS idx_dialogs_user ON dialogs(user_id);
-```
-
-### Таблица `dialog_messages` — сообщения диалогов (TLL-06)
-
-```sql
-CREATE TABLE IF NOT EXISTS dialog_messages (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    dialog_id  INTEGER NOT NULL REFERENCES dialogs(id) ON DELETE CASCADE,
-    role       TEXT    NOT NULL,   -- 'user', 'assistant', 'system', 'tool'
-    content    TEXT    NOT NULL,
-    created_at INTEGER NOT NULL    -- Unix timestamp
-);
-
-CREATE INDEX IF NOT EXISTS idx_dm_dialog ON dialog_messages(dialog_id);
-```
-
-ON DELETE CASCADE работает благодаря `PRAGMA foreign_keys=ON` в `init_db()`.
-
-### Инициализация
-
-При старте бота вызывается `database.init_db()`, которая создаёт все шесть таблиц если их нет, и выполняет:
-
-```sql
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
+├── bot.py              — точка входа: polling + scheduler + web-сервер
+├── config.py           — загрузка .env, валидация
+├── database.py         — все SQL-запросы, 6 таблиц, миграции
+├── ingest.py           — приём сообщений из группового чата
+├── worker.py           — ежедневная сводка: LLM → картинка → отправка
+├── llm.py              — OpenAI Responses API, промпт сводок, парсинг
+├── chat.py             — чат с Лешим (Cerebras, агентный цикл, web search)
+├── imagegen.py         — генерация картинок (OpenAI Image API + Pillow)
+├── auth.py             — Telegram Login (JWT), Mini App initData, middleware
+├── dialog_handlers.py  — Telegram ЛС: команды, кнопки, callback, catch-all
+├── web_app.py          — aiohttp: 26 маршрутов (дашборд + Mini App + API)
+├── templates/          — 5 HTML-шаблонов (base, summaries, dashboard, login, miniapp)
+├── static/style.css    — стили дашборда
+├── docs/               — техническая документация
+│   ├── inventory.md    — полный реестр проекта (модули, эндпоинты, БД, конфиг)
+│   └── raw/            — сырые данные инвентаризации (скрипт + результаты)
+├── test_llm.py         — тестовый скрипт LLM
+├── test_worker.py      — тестовый скрипт worker
+└── taigabot.service    — шаблон systemd unit
 ```
 
 ---
 
-## Конфигурация (`.env`)
+## БД (SQLite, taigabot.db)
 
-```env
-BOT_TOKEN=        # токен от @BotFather
-ALLOWED_CHAT_ID=  # chat_id группы (отрицательное число, например -1001234567890)
-OPENAI_API_KEY=   # ключ OpenAI
-OPENAI_MODEL=     # модель, например gpt-5.4-mini
-SUMMARY_TIME=     # время отправки сводки, формат HH:MM, например 22:00
-TIMEZONE=         # временная зона, например Europe/Riga
-
-# Опциональные (имеют defaults, бот работает без них):
-IMAGE_MODEL=      # модель для генерации картинок, по умолчанию gpt-image-1-mini
-IMAGE_QUALITY=    # качество: low / medium / high, по умолчанию low
-IMAGE_SIZE=       # размер: 1024x1024 / 1024x1536 / 1536x1024, по умолчанию 1024x1024
-WEB_PORT=         # порт веб-интерфейса, по умолчанию 8080
-
-# Авторизация:
-SESSION_SECRET_KEY=  # 32-байтный Fernet-ключ для шифрования сессионных кук
-BOT_USERNAME=        # @username бота без символа @ (для Telegram Login Widget)
-
-# Чат с Лешим (TLL-06, обязательные):
-CHAT_API_BASE=       # base URL провайдера (например https://api.cerebras.ai/v1)
-CHAT_API_KEY=        # API-ключ провайдера чата (Cerebras / OpenRouter / Groq)
-CHAT_MODEL=          # имя модели (например llama3.1-8b)
-
-# Опциональные (чат):
-DIALOG_ALLOWED_IDS=  # Telegram user ID через запятую, кому разрешён диалог (пусто = нет ограничений)
-```
-
-**Вычисляемые переменные (не из `.env`):**
-- `BOT_ID` — числовая часть `BOT_TOKEN` до двоеточия (`int(BOT_TOKEN.split(":")[0])`). Используется как `audience` при валидации JWT от Telegram Login.
-
-Файл `.env` никогда не попадает в репозиторий. В репозитории есть только `.env.example` с пустыми значениями и комментариями.
-
-Модуль `config.py` при загрузке валидирует что все обязательные переменные присутствуют и не пустые. Если что-то отсутствует — бот не запускается, а выбрасывает понятное исключение с объяснением какая переменная пропущена.
+6 таблиц: `messages` (входящие, временные), `summaries` (архив сводок),
+`settings` (key-value, промпты), `prompt_history` (аудит промптов),
+`dialogs` (диалоги с Лешим), `dialog_messages` (сообщения в диалогах,
+CASCADE). Подробные DDL — в `docs/inventory.md`, раздел 5.
 
 ---
 
-## Авторизация (модуль `auth.py`)
+## Конфигурация (.env)
 
-Веб-лента сводок доступна всем без авторизации. Админ-дашборд доступен только пользователям из `ADMIN_IDS` после входа через Telegram Login.
+Обязательные: `BOT_TOKEN`, `ALLOWED_CHAT_ID`, `ADMIN_IDS`,
+`OPENAI_API_KEY`, `OPENAI_MODEL`, `SUMMARY_TIME`, `TIMEZONE`,
+`SESSION_SECRET_KEY`, `BOT_USERNAME`, `CHAT_API_BASE`, `CHAT_API_KEY`,
+`CHAT_MODEL`.
 
-### Telegram Login
+Опциональные (есть defaults): `SUMMARY_CHAT_ID`, `IMAGE_MODEL`,
+`IMAGE_QUALITY`, `IMAGE_SIZE`, `WEB_PORT`, `DIALOG_ALLOWED_IDS`.
 
-Используется стандартный **iframe-виджет** Telegram Login Widget в режиме **redirect** (`data-auth-url`). Кнопка «ВХОД» в правом верхнем углу главной страницы ведёт на промежуточную страницу `/auth/login`, где размещён виджет.
+Вычисляемые: `BOT_ID` = числовая часть `BOT_TOKEN` до двоеточия.
 
-**Поток авторизации:**
-1. Пользователь нажимает «ВХОД» → переходит на `/auth/login`
-2. На странице отображается стандартная кнопка Telegram Login Widget
-3. Пользователь нажимает кнопку → авторизуется через Telegram
-4. Telegram перенаправляет браузер на `/auth/callback?id=...&first_name=...&hash=...` (GET с query-параметрами)
-5. Сервер валидирует данные через HMAC-SHA256:
-   - `secret_key = SHA256(BOT_TOKEN)`
-   - `HMAC-SHA256(secret_key, data-check-string)` сравнивается с `hash`
-   - `auth_date` не старше 86400 секунд
-6. Проверка `id` по белому списку `ADMIN_IDS`
-7. Если админ → создаёт сессию → redirect на `/`
-8. Если не админ → текстовая страница с отказом: «Лес закрыт. Ты не из моего леса.»
-
-**Важно:** JWT-валидация через JWKS (`_validate_jwt`) сохранена в коде `auth.py` для возможного использования в будущем, но в текущем redirect-flow не вызывается.
-
-### Сессии
-
-Сессии хранятся в зашифрованных cookies через `aiohttp-session` + `EncryptedCookieStorage` (Fernet). Ключ шифрования — `SESSION_SECRET_KEY` из конфигурации.
-
-Данные сессии: `user_id` (int), `first_name` (str), `username` (str).
-
-### Middleware
-
-`auth_middleware` загружает данные пользователя из сессии в `request['user']` (dict или None). Шаблоны получают `user` через контекст и решают что показывать.
-
-### Дашборд
-
-Блок дашборда рендерится серверно (`{% if user %}{% include "dashboard.html" %}{% endif %}`) — для гостей HTML не генерируется вообще. Текущая версия содержит заглушки: «Статистика», «Логи», «Промпт».
-
-### Настройка в BotFather
-
-Для работы Telegram Login необходимо в @BotFather → Bot Settings → Web Login добавить домен сайта в Allowed URLs (например, `https://taiga.ex-mari.com`).
+Полное описание — в `docs/inventory.md`, раздел 6.
 
 ---
 
-## Логика ingest (модуль `ingest.py`)
+## Два LLM-клиента (не путать!)
 
-Бот должен быть добавлен в группу с **отключённым Privacy Mode** (настраивается в @BotFather → Bot Settings → Group Privacy → отключить). Без этого бот видит только сообщения, начинающиеся с `/`.
+**llm.py** — OpenAI Responses API (`client.responses.create`),
+`store=False`. Модель: `gpt-5.4-mini`. Для ежедневных сводок.
 
-Хэндлер принимает **только** сообщения из `ALLOWED_CHAT_ID`. Все остальные чаты игнорируются молча.
-
-Принимаются только текстовые сообщения (`message.text`). Стикеры, фото, голосовые и прочие типы — игнорируются.
-
-`username` сохраняем как есть — это публичная информация, которую пользователь сам выбрал и сделал видимой для всех участников группы. Без никнеймов раздел "Герой и антигерой дня" теряет смысл.
-
-Перед сохранением числовой `user_id` анонимизируется: `hashlib.sha256(str(real_uid).encode()).hexdigest()[:12]`. Это внутренний идентификатор Telegram, который пользователь не выбирал и не видит — его в базе хранить незачем.
+**chat.py** — Chat Completions API (`client.chat.completions.create`).
+Провайдер: Cerebras. Модель: `qwen-3-235b-a22b-instruct-2507`.
+Для интерактивного чата. Агентный цикл с tool calling (web search).
 
 ---
 
-## Логика worker (модуль `worker.py`)
+## Уровни доступа
 
-Worker запускается по расписанию через APScheduler ежедневно в `SUMMARY_TIME` по таймзоне `TIMEZONE`.
-
-Алгоритм:
-
-1. Достаём из `messages` все записи за последние 24 часа.
-2. Если сообщений меньше 10 — отправляем в чат заглушку: *"Сегодня в чате было тихо. Даже Леший не вышел."* Сводку не генерируем, в `summaries` не пишем.
-3. Если сообщений достаточно — формируем контекст для LLM (список `username: text`) и передаём в `llm.generate_summary()`.
-4. Парсим ответ через `llm.parse_summary_response()` — извлекаем `image_prompt`, `image_caption` и `summary_text`.
-5. Если есть `image_prompt` и `image_caption` — пытаемся сгенерировать картинку через `imagegen.generate_meme_image()` (до 3 попыток, пауза 30 сек). При успехе — `bot.send_photo()`. При неудаче — логируем и продолжаем.
-6. Отправляем текстовую часть сводки (`summary_text` без маркеров) в `ALLOWED_CHAT_ID`.
-7. Сохраняем полный ответ LLM (с маркерами) в `summaries` для истории.
-8. Удаляем из `messages` все записи старше 48 часов.
-
-**КРИТИЧНО:** генерация картинки не блокирует отправку текста. Если картинка не получилась — текстовая сводка всё равно уходит.
-
-**Обработка ошибок на шагах 3–5:** если произошла ошибка (OpenAI недоступен, сеть упала и т.п.) — логируем ошибку и повторяем попытку через 1 минуту. И ещё через минуту. И ещё — пока не выполнится. Данные из `messages` при этом не трогаем. "Завтра" — недопустимое поведение: завтра worker запустит новую сводку за новый день, старая будет потеряна навсегда.
+- **Публичный** — лента сводок (`/`, `/miniapp/feed`)
+- **dialog** — `DIALOG_ALLOWED_IDS` (чат с Лешим в ЛС, дашборде, Mini App)
+- **admin** — `ADMIN_IDS` (статистика, редактор промптов, пульт)
 
 ---
-
-## Логика LLM (модуль `llm.py`)
-
-Функция `generate_summary(messages: list[dict]) -> str` принимает список словарей `{"username": str, "text": str}` и возвращает готовый текст сводки.
-
-Используем **Responses API** (не Chat Completions) — это текущий рекомендуемый API OpenAI для всех новых проектов. Синтаксис чище, есть хелпер `output_text`, и он future-proof для новых моделей.
-
-```python
-current_prompt = await get_current_prompt()  # из БД или DEFAULT_SYSTEM_PROMPT
-response = client.responses.create(
-    model=config.OPENAI_MODEL,          # gpt-5.4-mini
-    instructions=current_prompt,        # системный промпт с персонажем Лешего
-    input=formatted_messages,           # контекст чата за день
-    store=False                         # ОБЯЗАТЕЛЬНО: данные не сохраняются на серверах OpenAI
-)
-return response.output_text
-```
-
-`store=False` — это не опция, а обязательное условие privacy-first подхода. Без него OpenAI по умолчанию сохраняет запросы.
-
-**Промпт из базы данных:** функция `get_current_prompt()` читает ключ `system_prompt` из таблицы `settings`. Если ключ отсутствует — возвращает `DEFAULT_SYSTEM_PROMPT` (константа в коде, fallback). Админ может изменить промпт через редактор в дашборде (`/admin/prompt`). История версий хранится в `prompt_history`.
-
-**Системный промпт** реализует персонажа из техзадания:
-
-> Ты — Леший. Цифровой леший, мемолог и летописец коллективного загона.  
-> Ты целый день молча смотрел из чащи, как люди в чате умничали, сомневались, искали волшебную кнопку, спорили и иногда внезапно говорили что-то гениальное.  
-> Теперь выходишь и раздаёшь итоги дня — как тот, кто всё видел, всё помнит, и молчать больше не намерен.  
-> Ты не вежливый. Ты точный. Твои шутки порой такие, что плакать хочется — но смеёшься всё равно.
-
-**Структура сводки** — строго пять блоков в таком порядке:
-
-1. **МЕМ ДНЯ** — генерируется в специальных маркерах для последующего парсинга:
-   - `[IMAGE_PROMPT]...[/IMAGE_PROMPT]` — описание визуальной сцены на английском для OpenAI Image API. Стиль: яркий, мемный, абсурдный. Никаких текстов на картинке.
-   - `[IMAGE_CAPTION]...[/IMAGE_CAPTION]` — короткая хлёсткая подпись на русском (3-10 слов).
-2. **САМЫЙ ПОЛЕЗНЫЙ ИНСАЙТ ДНЯ** — 1–2 предложения. Единственная мысль, которую реально стоило не пролистывать.
-3. **ГЕРОЙ И АНТИГЕРОЙ ДНЯ** — с никнеймами и аргументами, лёгкий стёб без злобы.
-4. **ЧТО СЕГОДНЯ ВСЕ МУСОЛИЛИ** — самая зудящая тема: где застряли, о чём ходили по кругу.
-5. **МОРАЛЬ ДНЯ** — одна короткая фраза, без выводов, без "поэтому".
-
-**Парсинг ответа:** функция `parse_summary_response(text)` извлекает `image_prompt`, `image_caption` и `summary_text` (текст без маркеров). Graceful degradation: если маркеры не найдены — картинка не генерируется, текст отправляется целиком.
-
-**Правила стиля (обязательные):**
-- Разговорный язык, можно подколоть но не унижать
-- Никакой канцелярщины и корпоративной вежливости
-- Не перечислять сообщения, не быть нейтральным, не писать как отчёт
-- Если день скучный — честно: *"Сегодня был день 'поговорили — разошлись'"*
-
-Перед отправкой в OpenAI API убеждаемся что в тексте сообщений нет реальных user_id (только анонимизированные хэши и username).
-
----
-
-## Генерация картинок (модуль `imagegen.py`)
-
-Модуль отвечает за генерацию картинки МЕМ ДНЯ и наложение текстовой подписи.
-
-**Генерация картинки** — через OpenAI **Image API** (`client.images.generate()`), НЕ через Responses API:
-
-```python
-response = await _client.images.generate(
-    model=config.IMAGE_MODEL,       # gpt-image-1-mini
-    prompt=prompt,                  # английский промпт из [IMAGE_PROMPT]
-    n=1,
-    size=config.IMAGE_SIZE,         # 1024x1024
-    quality=config.IMAGE_QUALITY,   # low
-    response_format="b64_json",
-)
-image_bytes = base64.b64decode(response.data[0].b64_json)
-```
-
-**Наложение подписи (Pillow overlay):**
-- Полупрозрачная тёмная плашка (~18% высоты) в нижней части картинки
-- Белый текст подписи по центру плашки
-- Шрифт: DejaVu Sans Bold (`/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf`), fallback на `ImageFont.load_default()`
-- Автоподбор размера шрифта: от 48px вниз, пока текст не поместится по ширине
-
-**Системная зависимость:** пакет `fonts-dejavu-core` должен быть установлен на VPS (`sudo apt install fonts-dejavu-core`).
-
-**Публичный интерфейс:**
-```python
-async def generate_meme_image(prompt: str, caption: str) -> BytesIO | None
-```
-
-При любой ошибке возвращает `None` — никогда не бросает исключение наружу.
-
----
-
-## Чат с Лешим (модуль `chat.py`)
-
-Чат использует OpenAI-совместимый Chat Completions API через провайдер-агностичный клиент.
-Провайдер задаётся через `CHAT_API_BASE` / `CHAT_API_KEY` / `CHAT_MODEL` в `.env`.
-Поддерживаемые провайдеры: Cerebras, OpenRouter, Groq (любой с OpenAI-совместимым API и tool calling).
-
-**Это ДРУГОЙ клиент и ДРУГОЙ API, чем в `llm.py`:**
-- `llm.py`: OpenAI Responses API (`client.responses.create`), `store=False`, для ежедневных сводок
-- `chat.py`: Chat Completions API (`client.chat.completions.create`), для интерактивного чата
-
-**Агентный цикл:**
-1. Пользователь пишет → запись в `dialog_messages`
-2. Последние 8 сообщений (user+assistant) → контекст для модели
-3. Модель получает system prompt + контекст + инструмент `web_search`
-4. Если модель решает искать → выполняется DuckDuckGo поиск (`asyncio.to_thread`) → результаты отправляются обратно
-5. Финальный ответ → запись в `dialog_messages`, обновление `updated_at` диалога
-6. Максимум 3 итерации агентного цикла (защита от зацикливания)
-
-Контекстное окно = 8 сообщений (4 пары вопрос-ответ). Все сообщения хранятся в БД.
-
-**Промпт чата** хранится в `settings` под ключом `chat_system_prompt`. При отсутствии — используется `DEFAULT_CHAT_PROMPT` из кода. История версий: таблица `prompt_history` с `prompt_key='chat_system_prompt'`.
-
----
-
-## Обязательная проверка перед началом работы
-
-В начале каждой сессии, перед написанием любого кода, агент обязан проверить актуальные версии всех компонентов стека и сверить их с тем, что указано в этом файле. Если что-то изменилось — обновить `requirements.txt` и сообщить об изменениях.
-
-Что проверять обязательно:
-
-- **aiogram** — `pip index versions aiogram` или документация на docs.aiogram.dev. Убедиться что используется aiogram 3.x, а не 2.x (у них несовместимый API).
-- **openai Python SDK** — актуальная версия на pypi.org/project/openai. Проверить что Responses API (`client.responses.create`) доступен в этой версии — он появился в SDK относительно недавно.
-- **gpt-5.4-mini** — проверить что модель доступна в API на platform.openai.com/docs/models. Если модель сменила название или появилась более подходящая — сообщить и предложить обновление.
-- **APScheduler** — актуальная версия и совместимость с Python 3.11+.
-- **aiosqlite** — актуальная версия.
-
-Если в процессе проверки агент обнаруживает что документация или API изменились относительно инструкций в этом файле — он сообщает об этом явно и предлагает обновить `CLAUDE.md`, а не молча пишет код под старые инструкции.
 
 ## Правила разработки
 
-**Стиль кода:**
-- Весь код на Python 3.11+, async/await везде где есть I/O
-- Type hints обязательны для всех функций
-- Docstrings на русском языке для всех модулей и публичных функций
-- Логирование через стандартный `logging`, уровень INFO для штатных событий, ERROR для ошибок
-
-**Что нельзя делать:**
-- Коммитить `.env` файл с реальными ключами — никогда
-- Коммитить `taigabot.db` — база данных не в репозитории
-- Добавлять зависимости не из стека выше без явного согласования
-- Использовать синхронные операции там где есть async-альтернатива
-
-**Структура коммитов:**
-- `feat: описание` — новая функциональность
-- `fix: описание` — исправление ошибки
-- `refactor: описание` — рефакторинг без изменения поведения
-- `docs: описание` — изменения в документации
-
----
-
-## Деплой на VPS (Ubuntu)
-
-Полная инструкция в `deploy.md`. Кратко:
-
-```bash
-# На VPS от имени рабочего пользователя
-git clone https://github.com/forreggy/claude-code-playground.git
-cd claude-code-playground
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-nano .env  # заполнить все переменные
-
-# Запуск через systemd
-sudo cp taigabot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable taigabot
-sudo systemctl start taigabot
-sudo systemctl status taigabot
-```
-
-В `taigabot.service` используются абсолютные пути. Шаблон в репозитории содержит плейсхолдеры `{{USER}}` и `{{PROJECT_DIR}}` которые нужно заменить перед копированием.
-
----
-
-## Контекст для агента
-
-Ты работаешь в рамках учебного проекта. Задачи будут поступать по одной, чётко сформулированными. После выполнения каждой задачи результат деплоится на реальный VPS и тестируется. Если тест не проходит — следует задача на исправление.
-
-Приоритеты в порядке убывания: **работает корректно** → **читаемый код** → **оптимальная производительность**.
-
-Не добавляй функциональность сверх того что просят в задаче. Не рефакторируй то, чего задача не касается.
+- async/await для всего I/O
+- Type hints обязательны
+- Docstrings на русском
+- Логирование: `logging`, INFO/ERROR
+- Коммиты: `feat:`, `fix:`, `refactor:`, `docs:`
+- ЗАПРЕЩЕНО: коммитить .env, taigabot.db; добавлять зависимости без согласования
+- Приоритеты: работает корректно → читаемый код → производительность
+- Не добавлять функциональность сверх задачи
+- Не рефакторить то, чего задача не касается
